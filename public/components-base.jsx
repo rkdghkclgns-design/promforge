@@ -21,6 +21,8 @@ const Icon = ({ name, className = "icn" }) => {
     flame: <><path d="M12 2s5 4.5 5 10a5 5 0 1 1-10 0c0-2 1-3.5 2-4.5C9 9 9 7 8 5c3 1 4 2 4 5 0-1 1-2.5 2-3 0 1 0 2-1 3 1-2 2-3 3-3-1 2-2 3-2 5"/></>,
     plus: <><path d="M12 5v14M5 12h14"/></>,
     discord: <><path d="M19 5a14 14 0 0 0-3.5-1l-.4.7a13 13 0 0 0-4.2 0L10.5 4A14 14 0 0 0 7 5a17 17 0 0 0-3 11 14 14 0 0 0 4 2l.7-1a10 10 0 0 1-2-1c.2-.1.3-.2.5-.3a10 10 0 0 0 8.5 0l.5.3a10 10 0 0 1-2 1l.7 1a14 14 0 0 0 4-2 17 17 0 0 0-3-11z"/><circle cx="9" cy="13" r="1.2" fill="currentColor"/><circle cx="15" cy="13" r="1.2" fill="currentColor"/></>,
+    bell: <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></>,
+    bell_off: <><path d="M3 3l18 18"/><path d="M9.4 4.6A6 6 0 0 1 18 8c0 3 .5 5 1 6.4M6 8c0 7-3 9-3 9h12.5"/><path d="M10 21a2 2 0 0 0 4 0"/></>,
   };
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className={className}>
@@ -267,7 +269,16 @@ const Boards = () => {
         </div>
         <div className="boards-grid">
           {boards.map(b => (
-            <div key={b.slug || b.id} className={"board-card " + b.color} onClick={() => ui.open("board", b)}>
+            <div key={b.slug || b.id} className={"board-card " + b.color}
+                 onClick={() => ui.setRoute("board:" + (b.slug || b.id))}
+                 style={{position:"relative"}}>
+              <button className="bell-btn" title="새 글 알림 받기"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        ui.open("subscribe", { boardSlug: b.slug || b.id, boardTitle: b.title });
+                      }}>
+                <Icon name="bell" className="icn" />
+              </button>
               <div className="glyph"><Icon name={b.glyph} className="icn" /></div>
               <div className="title">{b.title}</div>
               <div className="desc">{b.desc}</div>
@@ -283,4 +294,126 @@ const Boards = () => {
   );
 };
 
-window.PF_BASE = { Icon, Nav, Ticker, Hero, Boards };
+// —— BoardDetailPage ——
+const BoardDetailPage = ({ slug }) => {
+  const ui = window.PF_UI.useUI();
+  const [board, setBoard] = useState(null);
+  const [posts, setPosts] = useState([]);
+  const [tab, setTab] = useState("hot");
+  const [loading, setLoading] = useState(true);
+  const [subscribed, setSubscribed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setLoading(true);
+      try {
+        const [bRes, pRes] = await Promise.all([
+          window.PF_API.boards(),
+          window.PF_API.posts({ board: slug, tab, limit: 30 }),
+        ]);
+        if (!alive) return;
+        const found = bRes.boards.find((b) => b.slug === slug);
+        setBoard(found ? {
+          ...found,
+          desc: found.description,
+          ...(SLUG_TO_VISUAL[found.slug] ?? { color: "cyan", glyph: "spark" }),
+        } : null);
+        setPosts(pRes.posts || []);
+      } catch (err) {
+        ui.toast("게시판을 불러오지 못했습니다", "오류");
+      } finally {
+        alive && setLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [slug, tab]);
+
+  if (!board && !loading) {
+    return (
+      <div className="container" style={{padding: "80px 28px", textAlign: "center"}}>
+        <h2>알 수 없는 게시판</h2>
+        <p style={{color:"var(--ink-2)",marginTop:12}}>'{slug}' 보드를 찾을 수 없습니다.</p>
+        <button className="btn btn-primary" style={{marginTop:20}} onClick={() => ui.setRoute("home")}>홈으로</button>
+      </div>
+    );
+  }
+
+  return (
+    <section className="section" style={{paddingTop: 28}}>
+      <div className="container">
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:18,fontSize:13,color:"var(--ink-3)"}}>
+          <a href="#home" onClick={(e) => { e.preventDefault(); ui.setRoute("home"); }} style={{cursor:"pointer"}}>홈</a>
+          <span>›</span>
+          <a href="#home" onClick={(e) => { e.preventDefault(); ui.setRoute("home"); setTimeout(() => document.getElementById("board")?.scrollIntoView({behavior:"smooth"}), 60); }} style={{cursor:"pointer"}}>게시판</a>
+          <span>›</span>
+          <span style={{color:"var(--ink-1)"}}>{board?.title || "…"}</span>
+        </div>
+
+        <div className="section-head" style={{marginBottom: 18}}>
+          <div className="left" style={{display:"flex",alignItems:"center",gap:14}}>
+            <div className={"board-card " + (board?.color || "cyan")}
+                 style={{width:54,height:54,padding:0,display:"grid",placeItems:"center",pointerEvents:"none"}}>
+              <div className="glyph" style={{margin:0}}>
+                <Icon name={board?.glyph || "spark"} className="icn" />
+              </div>
+            </div>
+            <div>
+              <div className="kicker">// /board/{slug}</div>
+              <h2 style={{margin:0}}>{board?.title || "…"}</h2>
+              <div className="sub" style={{marginTop:4}}>{board?.desc || ""}</div>
+            </div>
+          </div>
+          <div className="right" style={{display:"flex",alignItems:"center",gap:8}}>
+            <button className="bell-btn lg" title={subscribed ? "알림 해제" : "새 글 알림 받기"}
+                    onClick={() => {
+                      setSubscribed((v) => !v);
+                      ui.toast(subscribed ? "알림이 해제되었습니다" : `'${board?.title}' 알림이 켜졌습니다`, "구독");
+                    }}>
+              <Icon name={subscribed ? "bell_off" : "bell"} className="icn" />
+            </button>
+            <button className="btn btn-primary" onClick={() => ui.open("newpost")}>
+              <Icon name="plus" className="icn" /> 새 글 쓰기
+            </button>
+          </div>
+        </div>
+
+        <div className="tabs" style={{marginBottom: 14}}>
+          <button className={"tab" + (tab === "hot" ? " active" : "")} onClick={() => setTab("hot")}>🔥 인기글</button>
+          <button className={"tab" + (tab === "latest" ? " active" : "")} onClick={() => setTab("latest")}>최신글</button>
+        </div>
+
+        <div className="post-list">
+          {loading ? (
+            <div style={{padding:40,textAlign:"center",color:"var(--ink-3)"}}>불러오는 중…</div>
+          ) : posts.length === 0 ? (
+            <div style={{padding:40,textAlign:"center",color:"var(--ink-3)"}}>
+              아직 이 보드에 글이 없습니다. <br/>
+              <button className="btn btn-primary" style={{marginTop:14}} onClick={() => ui.open("newpost")}>첫 글 작성하기</button>
+            </div>
+          ) : posts.map((p, i) => (
+            <div key={p.id || i} className={"post-row " + (board?.color || "cyan")} onClick={() => ui.open("post", p)}>
+              <span className="tag">{p.tag}</span>
+              <div className="title-cell">
+                <div className="t">{p.title}</div>
+                <div className="meta">
+                  <span className="author">@{p.author}</span>
+                  <span>·</span>
+                  <span>{p.time}</span>
+                  {p.badge ? <span className="badge">{p.badge}</span> : null}
+                </div>
+              </div>
+              <div className="stats">
+                <span>👁 {(p.views || 0).toLocaleString()}</span>
+                <span>♥ {p.likes || 0}</span>
+                <span>💬 {p.replies || 0}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+};
+
+window.PF_BASE = { Icon, Nav, Ticker, Hero, Boards, BoardDetailPage };

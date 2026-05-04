@@ -178,24 +178,31 @@ const PostModal = ({ post }) => {
 };
 
 const BoardModal = ({ board }) => {
-  const { toast, close } = useUI();
+  const { toast, close, setRoute } = useUI();
+  const [subscribed, setSubscribed] = useUS(false);
+  const slug = board.slug || board.id;
   return (
     <>
       <div className="kicker">// board</div>
-      <h2>{board.title}</h2>
-      <p className="lede">{board.desc}</p>
-      <div className="meta-row">
-        <span>📚 {board.posts.toLocaleString()} posts</span>
-        <span>· 🆕 +{board.today} today</span>
-        <span>· 👥 활성 멤버 약 {Math.round(board.posts / 12)}명</span>
+      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",gap:12}}>
+        <h2 style={{margin:0}}>{board.title}</h2>
+        <button className="bell-btn" title={subscribed ? "알림 해제" : "새 글 알림"}
+                onClick={() => { setSubscribed((v) => !v); toast(subscribed ? "알림이 해제되었습니다" : `'${board.title}' 알림이 켜졌습니다`, "구독"); }}>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="icn">
+            {subscribed
+              ? <><path d="M3 3l18 18"/><path d="M9.4 4.6A6 6 0 0 1 18 8c0 3 .5 5 1 6.4M6 8c0 7-3 9-3 9h12.5"/><path d="M10 21a2 2 0 0 0 4 0"/></>
+              : <><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21a2 2 0 0 0 4 0"/></>}
+          </svg>
+        </button>
       </div>
-      <p className="body-text">
-        이 보드의 모든 게시글은 자유롭게 열람할 수 있습니다.
-        지금은 메인 피드의 인기/최신 탭에서 글을 둘러볼 수 있고, 새 글 알림을 받으려면 아래 버튼을 눌러주세요.
-      </p>
+      <p className="lede" style={{marginTop:8}}>{board.desc}</p>
+      <div className="meta-row">
+        <span>📚 {(board.posts ?? 0).toLocaleString()} posts</span>
+        <span>· 🆕 +{board.today ?? 0} today</span>
+      </div>
       <div className="actions">
         <button className="btn btn-ghost" onClick={close}>닫기</button>
-        <button className="btn btn-primary" onClick={() => toast(`'${board.title}' 보드 알림 켜짐`, "구독")}>새 글 알림 받기</button>
+        <button className="btn btn-primary" onClick={() => { close(); setRoute("board:" + slug); }}>전체 게시글 보기 →</button>
       </div>
     </>
   );

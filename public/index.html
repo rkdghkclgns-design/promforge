@@ -30,7 +30,7 @@
 
 <script type="text/babel">
 const { useState, useEffect } = React;
-const { Nav, Ticker, Hero, Boards } = window.PF_BASE;
+const { Nav, Ticker, Hero, Boards, BoardDetailPage } = window.PF_BASE;
 const { PostsSection, Showcase, Studies, Rail, Tools, CTABanner, Footer } = window.PF_SEC;
 const { AdminPage } = window.PF_ADMIN;
 const { useSession, AdminGuard, NavSession, LoginGate } = window.PF_AUTH;
@@ -93,6 +93,16 @@ const App = ({ tweaks }) => {
       <>
         <NavWithSession />
         <AdminGuard><AdminPage /></AdminGuard>
+        <Footer />
+      </>
+    );
+  }
+  if (ui.route.startsWith("board:")) {
+    const slug = ui.route.slice(6);
+    return (
+      <>
+        <NavWithSession />
+        <BoardDetailPage slug={slug} />
         <Footer />
       </>
     );

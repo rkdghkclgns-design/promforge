@@ -1259,3 +1259,52 @@ footer {
   color: var(--ink-3);
   margin-top: 4px;
 }
+
+/* —— Bell icon button (board subscribe) —— */
+.bell-btn {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(20, 26, 46, 0.5);
+  color: var(--ink-2);
+  display: inline-grid;
+  place-items: center;
+  cursor: pointer;
+  transition: all 160ms;
+  flex-shrink: 0;
+}
+.bell-btn:hover {
+  color: var(--ember);
+  border-color: rgba(255, 138, 60, 0.4);
+  background: rgba(255, 138, 60, 0.08);
+}
+.bell-btn:active {
+  transform: scale(0.94);
+}
+.bell-btn.lg {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+}
+.bell-btn .icn {
+  width: 16px;
+  height: 16px;
+}
+.bell-btn.lg .icn {
+  width: 18px;
+  height: 18px;
+}
+.board-card .bell-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  background: rgba(7, 9, 15, 0.6);
+  backdrop-filter: blur(4px);
+}
+.board-card .bell-btn .icn {
+  width: 14px;
+  height: 14px;
+}

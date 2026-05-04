@@ -48,7 +48,15 @@
 
   const api = {
     auth: {
-      me: () => request('/me').catch((e) => { if (e.status === 401) return null; throw e; }),
+      // Skip the round-trip entirely when there's no token — avoids a noisy
+      // 401 in the console for fresh visitors.
+      me: () => {
+        if (!getToken()) return Promise.resolve(null);
+        return request('/me').catch((e) => {
+          if (e.status === 401) { setToken(null); return null; }
+          throw e;
+        });
+      },
       signup: async (body) => {
         const r = await request('/signup', { method: 'POST', body });
         if (r?.token) setToken(r.token);
