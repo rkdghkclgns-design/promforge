@@ -1,44 +1,78 @@
 /* PromForge — community sections (with UI wiring) */
-const { useState: useS2 } = React;
+const { useState: useS2, useEffect: useE2 } = React;
 const { Icon: I2 } = window.PF_BASE;
+
+const TAG_COLOR = {
+  PROMPT: "cyan", SHOWCASE: "ember", WORKFLOW: "violet", "Q&A": "green",
+  DESIGN: "cyan", TOOLS: "violet", ART: "ember", FREE: "green",
+  RELEASE: "violet",
+};
 
 const PostsSection = () => {
   const ui = window.PF_UI.useUI();
   const [tab, setTab] = useS2("hot");
-  const data = window.PF_DATA.posts;
-  const list = data[tab] || data.hot;
+  const [posts, setPosts] = useS2([]);
+  const [counts, setCounts] = useS2({ hot: 0, latest: 0, verified: 0, release: 0 });
+  const [loading, setLoading] = useS2(true);
+
+  const fetchTab = async (which) => {
+    setLoading(true);
+    try {
+      const params = which === "verified"
+        ? { tab: "hot", limit: 30 }
+        : which === "release"
+          ? { tab: "latest", board: "release", limit: 30 }
+          : { tab: which, limit: 20 };
+      const res = await window.PF_API.posts(params);
+      let list = res.posts ?? [];
+      if (which === "verified") list = list.filter((p) => p.badge && p.badge.includes("검증"));
+      setPosts(list);
+      setCounts((c) => ({ ...c, [which]: list.length }));
+    } catch {
+      // Fallback to mock if API unreachable
+      const m = window.PF_DATA.posts;
+      setPosts(m[which] || m.hot);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useE2(() => { fetchTab(tab); }, [tab]);
+
   return (
     <div className="posts-block">
       <div className="tabs">
         <button className={"tab" + (tab === "hot" ? " active" : "")} onClick={() => setTab("hot")}>
-          🔥 인기글 <span className="count">{data.hot.length}</span>
+          🔥 인기글 <span className="count">{counts.hot}</span>
         </button>
         <button className={"tab" + (tab === "latest" ? " active" : "")} onClick={() => setTab("latest")}>
-          최신글 <span className="count">{data.latest.length}</span>
+          최신글 <span className="count">{counts.latest}</span>
         </button>
-        <button className={"tab" + (tab === "verified" ? " active" : "")} onClick={() => { setTab("verified"); ui.toast("검증된 프롬프트만 표시합니다", "필터"); setTimeout(() => setTab("hot"), 600); }}>검증된 프롬프트 <span className="count">42</span></button>
-        <button className={"tab" + (tab === "release" ? " active" : "")} onClick={() => { setTab("release"); ui.toast("출시작 모음을 표시합니다", "필터"); setTimeout(() => setTab("hot"), 600); }}>출시작 <span className="count">28</span></button>
+        <button className={"tab" + (tab === "verified" ? " active" : "")} onClick={() => setTab("verified")}>검증된 프롬프트 <span className="count">{counts.verified}</span></button>
+        <button className={"tab" + (tab === "release" ? " active" : "")} onClick={() => setTab("release")}>출시작 <span className="count">{counts.release}</span></button>
       </div>
       <div className="post-list">
-        {list.map((p, i) => (
-          <div key={i} className={"post-row " + p.color} onClick={() => ui.open("post", p)}>
+        {loading ? <div style={{padding: 32, textAlign: "center", color: "var(--ink-3)"}}>불러오는 중…</div>
+        : posts.length === 0 ? <div style={{padding: 32, textAlign: "center", color: "var(--ink-3)"}}>표시할 글이 없습니다.</div>
+        : posts.map((p, i) => (
+          <div key={p.id || i} className={"post-row " + (TAG_COLOR[p.tag] || p.color || "cyan")} onClick={() => ui.open("post", p)}>
             <span className="tag">{p.tag}</span>
             <div className="title-cell">
               <div className="t">
-                {p.hot ? <span style={{color: "var(--ember)", marginRight: 6}}>🔥</span> : null}
+                {p.likes > 100 ? <span style={{color: "var(--ember)", marginRight: 6}}>🔥</span> : null}
                 {p.title}
               </div>
               <div className="meta">
-                <span className="author">{p.author}</span>
+                <span className="author">@{p.author}</span>
                 <span>·</span>
                 <span>{p.time}</span>
                 {p.badge ? <span className="badge">{p.badge}</span> : null}
               </div>
             </div>
             <div className="stats">
-              <span><I2 name="eye" /> {p.views.toLocaleString()}</span>
-              <span className={p.likes > 100 ? "hot" : ""}><I2 name="heart" /> {p.likes}</span>
-              <span><I2 name="msg" /> {p.replies}</span>
+              <span><I2 name="eye" /> {(p.views || 0).toLocaleString()}</span>
+              <span className={p.likes > 100 ? "hot" : ""}><I2 name="heart" /> {p.likes || 0}</span>
+              <span><I2 name="msg" /> {p.replies || 0}</span>
             </div>
           </div>
         ))}
@@ -49,7 +83,23 @@ const PostsSection = () => {
 
 const Showcase = () => {
   const ui = window.PF_UI.useUI();
-  const items = window.PF_DATA.showcases;
+  const [items, setItems] = useS2(window.PF_DATA.showcases);
+  useE2(() => {
+    let alive = true;
+    window.PF_API.showcases().then((res) => {
+      if (!alive || !res?.showcases?.length) return;
+      const merged = res.showcases.map((s, i) => ({
+        id: s.id, title: s.title,
+        genre: s.genre || "Game",
+        author: s.author?.startsWith("@") ? s.author : `@${s.author || "anon"}`,
+        note: s.description,
+        featured: i === 0,
+        hue: i === 0 ? "ember" : null,
+      }));
+      setItems(merged);
+    }).catch(() => { /* keep mock */ });
+    return () => { alive = false; };
+  }, []);
   return (
     <section className="section" id="showcase">
       <div className="container">
@@ -61,15 +111,15 @@ const Showcase = () => {
           </div>
           <div className="right">
             <button className="btn btn-ghost" onClick={() => ui.open("filter")}>필터: 전체</button>
-            <button className="btn btn-ghost" onClick={() => ui.toast("전체 쇼케이스로 이동", "안내")}>전체보기 <I2 name="arrow" /></button>
+            <button className="btn btn-ghost" onClick={() => { document.getElementById("showcase")?.scrollIntoView({behavior:"smooth"}); ui.toast(`총 ${items.length}개 작품 표시 중`, "쇼케이스"); }}>전체보기 <I2 name="arrow" /></button>
           </div>
         </div>
         <div className="showcase-grid">
           {items.map((g, i) => (
-            <div key={g.id} className={"showcase-card" + (g.featured ? " feat" : "")} onClick={() => ui.open("showcase", g)}>
+            <div key={g.id || i} className={"showcase-card" + (g.featured ? " feat" : "")} onClick={() => ui.open("showcase", g)}>
               <div className="placeholder" data-label={"[ " + g.title + " — preview ]"}></div>
               <div className="info">
-                {g.featured ? <span className="pill ember">PICK OF THE WEEK</span> : <span className="pill">{g.genre.split("·")[0].trim()}</span>}
+                {g.featured ? <span className="pill ember">PICK OF THE WEEK</span> : <span className="pill">{(g.genre || "GAME").split("·")[0].trim()}</span>}
                 <h3>{g.title}</h3>
                 <div className="meta">{g.genre} · {g.author}</div>
               </div>
@@ -83,7 +133,24 @@ const Showcase = () => {
 
 const Studies = () => {
   const ui = window.PF_UI.useUI();
-  const studies = window.PF_DATA.studies;
+  const [studies, setStudies] = useS2(window.PF_DATA.studies);
+  useE2(() => {
+    let alive = true;
+    window.PF_API.studies().then((res) => {
+      if (!alive || !res?.studies?.length) return;
+      const merged = res.studies.map((s) => ({
+        id: s.id,
+        title: s.title,
+        desc: s.desc || s.description || "",
+        status: s.status || "recruit",
+        week: s.week || "WEEK 0",
+        members: ["EK", "SH", "MI", "JP"].slice(0, 4),
+        total: s.total || "0/10",
+      }));
+      setStudies(merged);
+    }).catch(() => { /* keep mock */ });
+    return () => { alive = false; };
+  }, []);
   const colors = ["#3ce3ff", "#ff8a3c", "#9a8cff", "#6ee7a0", "#ffd166", "#7defff"];
   return (
     <section className="section" id="studies">
@@ -100,7 +167,7 @@ const Studies = () => {
         </div>
         <div className="study-grid">
           {studies.map((s, i) => (
-            <div key={i} className="study-card" onClick={() => ui.open("study", s)}>
+            <div key={s.id || i} className="study-card" onClick={() => ui.open("study", s)}>
               <div className="top">
                 <span className={"status " + s.status}>
                   {s.status === "recruit" ? "● 모집중" : s.status === "active" ? "● 진행중" : "● 마감"}
@@ -213,7 +280,7 @@ const CTABanner = () => {
           <p>검증된 프롬프트 라이브러리, 출시 멘토, 매주 새로운 스터디 — 모두 무료. 가입은 30초.</p>
           <div className="group">
             <button className="btn btn-primary" onClick={() => ui.open("signup")}><I2 name="flame" /> 포지 가입하기</button>
-            <a className="btn btn-discord" href={ui.discordUrl} onClick={(e) => { e.preventDefault(); ui.toast("Discord 채널로 이동합니다", "디스코드"); }}>
+            <a className="btn btn-discord" href={ui.discordUrl} target="_blank" rel="noopener noreferrer">
               <I2 name="discord" /> Discord 들어가기
             </a>
           </div>
@@ -272,7 +339,7 @@ const Footer = () => {
           <div className="foot-col">
             <h5>SNS</h5>
             <ul>
-              <li><a href={ui.discordUrl} onClick={(e) => { e.preventDefault(); ui.toast("Discord 채널로 이동합니다", "디스코드"); }}>Discord</a></li>
+              <li><a href={ui.discordUrl} target="_blank" rel="noopener noreferrer">Discord</a></li>
               <li><a href="#" onClick={open("sns", "youtube")}>YouTube</a></li>
               <li><a href="#" onClick={open("sns", "twitter")}>X / Twitter</a></li>
               <li><a href="#" onClick={open("sns", "github")}>GitHub</a></li>

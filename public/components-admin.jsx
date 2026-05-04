@@ -437,9 +437,40 @@ const PF_ADMIN = (() => {
   // We mutate the user list via state lifted in UsersTab.
 
 
+  const LiveKPI = () => {
+    const [kpi, setKpi] = useState(null);
+    const [err, setErr] = useState(null);
+    const refresh = () => {
+      window.PF_API.admin.overview()
+        .then((d) => setKpi(d.kpi))
+        .catch((e) => setErr(e.message || "fetch failed"));
+    };
+    useEffect(() => { refresh(); }, []);
+    if (err) return (
+      <div style={{padding:14,borderRadius:10,border:"1px solid var(--line)",background:"rgba(255,90,31,0.08)",marginBottom:18}}>
+        <div className="kicker" style={{color:"var(--ember)"}}>// 라이브 데이터 로드 실패</div>
+        <div style={{fontSize:13,color:"var(--ink-2)",marginTop:4}}>{err}</div>
+      </div>
+    );
+    return (
+      <div style={{padding:"14px 16px",borderRadius:10,border:"1px solid var(--line-strong)",background:"rgba(60,227,255,0.05)",marginBottom:18,display:"flex",gap:24,alignItems:"center",flexWrap:"wrap"}}>
+        <div className="kicker" style={{color:"var(--cyan)",margin:0}}>● LIVE · Supabase</div>
+        <div style={{display:"flex",gap:24,flexWrap:"wrap",fontFamily:"JetBrains Mono, monospace",fontSize:13}}>
+          <span><span style={{color:"var(--ink-3)"}}>users:</span> <span style={{color:"var(--ink-0)"}}>{kpi?.total_users ?? "…"}</span></span>
+          <span><span style={{color:"var(--ink-3)"}}>posts:</span> <span style={{color:"var(--ink-0)"}}>{kpi?.total_posts ?? "…"}</span></span>
+          <span><span style={{color:"var(--ink-3)"}}>studies:</span> <span style={{color:"var(--ink-0)"}}>{kpi?.total_studies ?? "…"}</span></span>
+          <span><span style={{color:"var(--ink-3)"}}>subs:</span> <span style={{color:"var(--ink-0)"}}>{kpi?.total_subscribers ?? "…"}</span></span>
+          <span><span style={{color:"var(--ink-3)"}}>logins/24h:</span> <span style={{color:"var(--green)"}}>{kpi?.logins_24h ?? "…"}</span></span>
+        </div>
+        <button className="btn btn-ghost" onClick={refresh} style={{marginLeft:"auto",padding:"4px 10px",fontSize:12}}>↻ 새로고침</button>
+      </div>
+    );
+  };
+
   const OverviewTab = () => (
     <>
-      {/* KPI grid */}
+      <LiveKPI />
+      {/* KPI grid (illustrative) */}
       <div className="admin-kpi-grid">
         {KPIS.map(k => (
           <div key={k.id} className="admin-kpi">
@@ -772,6 +803,32 @@ const PF_ADMIN = (() => {
     const [statusFilter, setStatusFilter] = useState("all");
     const [q, setQ] = useState("");
     const [drawerUser, setDrawerUser] = useState(null);
+    const [liveLoaded, setLiveLoaded] = useState(false);
+
+    // Hydrate with live DB users (merged on top of mock seed for visual variety).
+    useEffect(() => {
+      window.PF_API.admin.users().then((res) => {
+        if (!res?.users?.length) return;
+        const liveUsers = res.users.map((u, i) => ({
+          id: `live-${u.id}`,
+          name: `@${u.username}`,
+          full: u.nickname || u.username,
+          email: u.email || "—",
+          role: u.role === "admin" ? "admin" : "member",
+          status: "active",
+          posts: 0,
+          comments: 0,
+          karma: 0,
+          joined: (u.created_at || "").slice(0, 10),
+          lastActive: u.last_login_at ? new Date(u.last_login_at).toLocaleString("ko-KR") : "—",
+          warnings: 0,
+          customPerms: false,
+          isLive: true,
+        }));
+        setUsers([...liveUsers, ...MOCK_USERS]);
+        setLiveLoaded(true);
+      }).catch(() => { /* keep mock-only */ });
+    }, []);
 
     const updateUser = (u) => setUsers(prev => prev.map(x => x.id === u.id ? u : x));
 

@@ -102,45 +102,76 @@ const ModalHost = () => {
 
 // —— Per-modal bodies ——
 const PostModal = ({ post }) => {
-  const { toast } = useUI();
+  const { toast, open } = useUI();
+  const [full, setFull] = useUS(post);
   const [liked, setLiked] = useUS(false);
-  const [likes, setLikes] = useUS(post.likes);
+  const [likes, setLikes] = useUS(post.likes ?? 0);
+  const [busy, setBusy] = useUS(false);
+
+  // Hydrate the full post (body, etc) when we have a real id.
+  useUE(() => {
+    let alive = true;
+    if (!post.id) return;
+    fetch(`https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/posts/${post.id}`, {
+      headers: {
+        apikey: window.PF_API && 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+        Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+        'x-pf-token': window.PF_API._internal.getToken() || '',
+      },
+    })
+      .then((r) => r.json())
+      .then((d) => { if (alive && d.post) setFull({ ...post, ...d.post }); })
+      .catch(() => { /* keep summary */ });
+    return () => { alive = false; };
+  }, [post.id]);
+
+  const onLike = async () => {
+    if (!post.id) { setLiked(!liked); setLikes((l) => l + (liked ? -1 : 1)); return; }
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await fetch(`https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/posts/${post.id}/like`, {
+        method: 'POST',
+        headers: {
+          apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+          Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+          'x-pf-token': window.PF_API._internal.getToken() || '',
+        },
+      });
+      if (r.status === 401) { toast('추천하려면 로그인이 필요합니다', '로그인'); open('login'); return; }
+      const data = await r.json();
+      if (data.likes != null) { setLikes(data.likes); setLiked(true); }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const showBody = full.body || full.preview;
+
   return (
     <>
-      <div className="kicker">{post.tag}</div>
-      <h2>{post.title}</h2>
+      <div className="kicker">{full.tag}</div>
+      <h2>{full.title}</h2>
       <div className="meta-row">
-        <span>@{post.author}</span>
-        <span>· {post.time}</span>
-        <span>· 👁 {post.views.toLocaleString()}</span>
-        <span>· 💬 {post.replies}</span>
-        {post.badge ? <span style={{color: "var(--ember)"}}>· {post.badge}</span> : null}
+        <span>@{full.author}</span>
+        {full.time && <span>· {full.time}</span>}
+        {full.views != null && <span>· 👁 {Number(full.views).toLocaleString()}</span>}
+        {full.replies != null && <span>· 💬 {full.replies}</span>}
+        {full.badge ? <span style={{color: "var(--ember)"}}>· {full.badge}</span> : null}
       </div>
-      <p className="body-text">
-        이 글은 PromForge 커뮤니티 멤버 <b>@{post.author}</b>가 공유한 게시물입니다.
-        실제 글에는 프롬프트 전문, 게임 빌드 영상, 그리고 댓글 토론이 포함됩니다.
-      </p>
-      <pre className="code">{`# ${post.title}
-
-> by @${post.author} · ${post.time}
-
-## 핵심 요약
-- ${post.tag === "PROMPT" ? "Claude/GPT 시스템 프롬프트 v3 — 토큰 절감 패턴" :
-   post.tag === "SHOWCASE" ? "4주간 빌드한 텍스트 어드벤처. 분기 240+." :
-   post.tag === "WORKFLOW" ? "Cursor Composer로 보스전 패턴 5종 자동 구현" :
-   "커뮤니티 멤버가 공유한 인사이트와 토론"}
-- 검증: PromForge 멤버 12명이 직접 테스트
-- 라이선스: CC-BY 4.0
-
-## 본문
-프롬프트 본문, 빌드 일지, 멤버 피드백 — 모두 자유롭게 열람 가능합니다.
-스크롤을 내려 댓글 ${post.replies}개와 함께 토론에 참여해보세요.`}</pre>
+      {full.body ? (
+        <pre className="code" style={{whiteSpace: 'pre-wrap'}}>{full.body}</pre>
+      ) : (
+        <p className="body-text" style={{padding: 16, border: '1px dashed var(--line-strong)', borderRadius: 8, background: 'rgba(20,26,46,0.3)'}}>
+          {full.preview || '본문을 불러오는 중…'}
+        </p>
+      )}
       <div className="actions">
-        <button className="btn btn-ghost" onClick={() => { setLiked(!liked); setLikes(l => l + (liked ? -1 : 1)); }}>
+        <button className="btn btn-ghost" onClick={onLike} disabled={busy}>
           {liked ? "♥" : "♡"} 추천 {likes}
         </button>
-        <button className="btn btn-ghost" onClick={() => { navigator.clipboard?.writeText(location.href); toast("링크가 복사되었습니다"); }}>링크 복사</button>
-        <button className="btn btn-primary" onClick={() => toast("댓글이 등록되었습니다", "댓글")}>댓글 달기</button>
+        <button className="btn btn-ghost" onClick={() => { navigator.clipboard?.writeText(location.href).then(() => toast("링크가 복사되었습니다")).catch(() => toast("복사 실패", "오류")); }}>링크 복사</button>
+        <button className="btn btn-primary" onClick={() => toast("댓글 기능은 다음 릴리스에 활성화됩니다", "준비중")}>댓글 달기</button>
       </div>
     </>
   );
@@ -272,64 +303,155 @@ const LoginModal = () => {
   );
 };
 
+const BOARD_OPTIONS = [
+  { slug: "prompts", title: "프롬프트 라이브러리" },
+  { slug: "showcase", title: "쇼케이스" },
+  { slug: "workflow", title: "툴 / 워크플로" },
+  { slug: "qna", title: "Q&A" },
+  { slug: "design", title: "게임 디자인" },
+  { slug: "art-sound", title: "AI 아트 & 사운드" },
+  { slug: "release", title: "출시 & 마케팅" },
+  { slug: "lounge", title: "자유게시판" },
+];
+
 const NewPostModal = () => {
-  const { toast, close } = useUI();
-  const [form, setForm] = useUS({ board: "프롬프트 라이브러리", title: "", body: "" });
+  const { toast, close, open } = useUI();
+  const [form, setForm] = useUS({ boardSlug: "prompts", title: "", body: "", tag: "PROMPT" });
+  const [busy, setBusy] = useUS(false);
+  const [error, setError] = useUS(null);
+  const submit = async () => {
+    setError(null);
+    if (!form.title.trim() || !form.body.trim()) { setError("제목과 본문을 입력해주세요."); return; }
+    setBusy(true);
+    try {
+      await window.PF_API.createPost
+        ? window.PF_API.createPost(form)
+        : (await fetch("https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/posts", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+              Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+              "x-pf-token": window.PF_API._internal.getToken() || "",
+            },
+            body: JSON.stringify(form),
+          })).json().then((d) => { if (d.error) throw d; return d; });
+      close();
+      toast("글이 발행되었습니다", "발행");
+    } catch (err) {
+      const code = err?.error || err?.data?.error;
+      if (code === "login_required") { setError("로그인이 필요합니다."); open("login"); }
+      else setError("발행 실패: " + (err.message || code || "오류"));
+    } finally { setBusy(false); }
+  };
   return (
     <>
       <div className="kicker">// 글쓰기</div>
       <h2>새 글 작성</h2>
-      <label className="field"><label>보드</label><input value={form.board} onChange={e => setForm({...form, board: e.target.value})} /></label>
+      <label className="field"><label>보드</label>
+        <select value={form.boardSlug} onChange={e => setForm({...form, boardSlug: e.target.value})}
+                style={{width:'100%',padding:'10px 12px',background:'rgba(20,26,46,0.5)',border:'1px solid var(--line)',borderRadius:8,color:'var(--ink-0)',fontFamily:'inherit',fontSize:14}}>
+          {BOARD_OPTIONS.map((b) => <option key={b.slug} value={b.slug}>{b.title}</option>)}
+        </select>
+      </label>
+      <label className="field"><label>태그</label><input value={form.tag} onChange={e => setForm({...form, tag: e.target.value.toUpperCase()})} placeholder="PROMPT / SHOWCASE / WORKFLOW …" /></label>
       <label className="field"><label>제목</label><input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="제목을 입력하세요" /></label>
       <label className="field"><label>본문</label><textarea rows={6} value={form.body} onChange={e => setForm({...form, body: e.target.value})} placeholder="공유할 프롬프트, 코드, 또는 질문…" /></label>
+      {error && <div style={{color:'var(--ember)', fontSize:13, marginBottom:8}}>{error}</div>}
       <div className="actions">
-        <button className="btn btn-ghost" onClick={close}>취소</button>
-        <button className="btn btn-primary" onClick={() => { close(); toast("글이 발행되었습니다", "발행"); }}>발행</button>
+        <button className="btn btn-ghost" onClick={close} disabled={busy}>취소</button>
+        <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? "발행 중…" : "발행"}</button>
       </div>
     </>
   );
 };
 
 const NewStudyModal = () => {
-  const { toast, close } = useUI();
+  const { toast, close, open } = useUI();
+  const [form, setForm] = useUS({ title: "", description: "", total: "0/10" });
+  const [busy, setBusy] = useUS(false);
+  const [error, setError] = useUS(null);
+  const submit = async () => {
+    setError(null);
+    if (!form.title.trim()) { setError("스터디명을 입력해주세요."); return; }
+    setBusy(true);
+    try {
+      const r = await fetch("https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/studies", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+          Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+          "x-pf-token": window.PF_API._internal.getToken() || "",
+        },
+        body: JSON.stringify(form),
+      });
+      const data = await r.json();
+      if (!r.ok) throw data;
+      close();
+      toast("스터디 모집이 게시되었습니다", "공개");
+    } catch (err) {
+      const code = err?.error;
+      if (code === "login_required") { setError("로그인이 필요합니다."); open("login"); }
+      else setError("게시 실패: " + (err.detail || code || "오류"));
+    } finally { setBusy(false); }
+  };
   return (
     <>
       <div className="kicker">// 스터디 만들기</div>
       <h2>새 스터디 모집</h2>
-      <label className="field"><label>스터디명</label><input placeholder="예) Godot + LLM 6주 스프린트" /></label>
-      <label className="field"><label>소개</label><textarea rows={4} placeholder="누구를 모집하는지, 무엇을 함께 할지 적어주세요" /></label>
-      <label className="field"><label>정원</label><input placeholder="예) 12" /></label>
+      <label className="field"><label>스터디명</label><input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="예) Godot + LLM 6주 스프린트" /></label>
+      <label className="field"><label>소개</label><textarea rows={4} value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="누구를 모집하는지, 무엇을 함께 할지 적어주세요" /></label>
+      <label className="field"><label>정원</label><input value={form.total} onChange={e => setForm({...form, total: e.target.value})} placeholder="예) 0/12" /></label>
+      {error && <div style={{color:'var(--ember)', fontSize:13, marginBottom:8}}>{error}</div>}
       <div className="actions">
-        <button className="btn btn-ghost" onClick={close}>취소</button>
-        <button className="btn btn-primary" onClick={() => { close(); toast("스터디 모집이 게시되었습니다", "공개"); }}>공개하기</button>
+        <button className="btn btn-ghost" onClick={close} disabled={busy}>취소</button>
+        <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? "게시 중…" : "공개하기"}</button>
       </div>
     </>
   );
 };
 
 const SearchModal = ({ initial }) => {
-  const { toast } = useUI();
+  const { toast, close } = useUI();
   const [q, setQ] = useUS(initial || "");
-  const all = [
-    ...window.PF_DATA.posts.hot.map(p => ({ kind: "post", title: p.title, sub: `@${p.author} · ${p.tag}` })),
-    ...window.PF_DATA.posts.latest.map(p => ({ kind: "post", title: p.title, sub: `@${p.author} · ${p.tag}` })),
-    ...window.PF_DATA.showcases.map(g => ({ kind: "game", title: g.title, sub: g.genre })),
-    ...window.PF_DATA.studies.map(s => ({ kind: "study", title: s.title, sub: s.week })),
-    ...window.PF_DATA.tools.map(t => ({ kind: "tool", title: t.name, sub: t.cnt })),
-  ];
-  const results = q.trim() ? all.filter(x => (x.title + x.sub).toLowerCase().includes(q.toLowerCase())).slice(0, 10) : [];
+  const [results, setResults] = useUS([]);
+  const [loading, setLoading] = useUS(false);
+
+  // Debounced live search
+  useUE(() => {
+    if (!q.trim()) { setResults([]); return; }
+    const t = setTimeout(async () => {
+      setLoading(true);
+      try {
+        const r = await fetch(`https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/search?q=${encodeURIComponent(q)}`, {
+          headers: {
+            apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+            Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+          },
+        });
+        const data = await r.json();
+        setResults(data.results || []);
+      } catch { setResults([]); }
+      finally { setLoading(false); }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [q]);
+
   return (
     <>
       <div className="kicker">// 검색</div>
       <h2>커뮤니티 전체 검색</h2>
-      <label className="field"><input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="프롬프트, 게임, 멤버, 도구…" /></label>
+      <label className="field"><input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="프롬프트, 게임, 스터디 제목…" /></label>
       <div style={{maxHeight: 320, overflowY: "auto"}}>
         {q.trim() === "" ? (
           <div style={{color: "var(--ink-3)", fontSize: 13, padding: "20px 0", textAlign: "center", fontFamily: "JetBrains Mono, monospace"}}>검색어를 입력하세요</div>
+        ) : loading ? (
+          <div style={{color: "var(--ink-3)", fontSize: 13, padding: "20px 0", textAlign: "center"}}>검색 중…</div>
         ) : results.length === 0 ? (
           <div style={{color: "var(--ink-3)", fontSize: 13, padding: "20px 0", textAlign: "center"}}>'{q}' 와 일치하는 결과가 없습니다</div>
         ) : results.map((r, i) => (
-          <div key={i} onClick={() => toast(`'${r.title}' 열기`, r.kind.toUpperCase())} style={{padding: "10px 0", borderBottom: "1px solid var(--line)", cursor: "pointer"}}>
+          <div key={r.id || i} onClick={() => { close(); toast(`'${r.title}' 선택됨`, r.kind.toUpperCase()); }} style={{padding: "10px 0", borderBottom: "1px solid var(--line)", cursor: "pointer"}}>
             <div style={{fontSize: 14, color: "var(--ink-0)", fontWeight: 500}}>{r.title}</div>
             <div style={{fontSize: 12, color: "var(--ink-3)", fontFamily: "JetBrains Mono, monospace", marginTop: 2}}>{r.kind} · {r.sub}</div>
           </div>
@@ -342,15 +464,30 @@ const SearchModal = ({ initial }) => {
 const SubscribeModal = () => {
   const { toast, close } = useUI();
   const [email, setEmail] = useUS("");
+  const [busy, setBusy] = useUS(false);
+  const [error, setError] = useUS(null);
+  const submit = async () => {
+    setError(null);
+    if (!email.includes("@")) { setError("올바른 이메일을 입력해주세요."); return; }
+    setBusy(true);
+    try {
+      await window.PF_API.subscribe(email);
+      close();
+      toast("구독되었습니다. 다음 월요일에 만나요!", "구독");
+    } catch (err) {
+      setError("구독 실패: " + (err.message || "오류"));
+    } finally { setBusy(false); }
+  };
   return (
     <>
       <div className="kicker">// 다이제스트 구독</div>
       <h2>매주 월요일 아침, 한 번에.</h2>
       <p className="lede">한국 AI 게임 씬에서 일어난 일들 — 릴리즈, 프롬프트, 스터디, 게임잼 — 8분 안에 읽도록 정리해 드립니다.</p>
-      <label className="field"><label>이메일</label><input value={email} onChange={e => setEmail(e.target.value)} placeholder="you@studio.com" /></label>
+      <label className="field"><label>이메일</label><input type="email" value={email} onChange={e => setEmail(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submit()} placeholder="you@studio.com" /></label>
+      {error && <div style={{color:'var(--ember)', fontSize:13, marginBottom:8}}>{error}</div>}
       <div className="actions">
-        <button className="btn btn-ghost" onClick={close}>나중에</button>
-        <button className="btn btn-primary" onClick={() => { close(); toast("구독되었습니다. 다음 월요일에 만나요!", "구독"); }}>구독하기</button>
+        <button className="btn btn-ghost" onClick={close} disabled={busy}>나중에</button>
+        <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? "처리 중…" : "구독하기"}</button>
       </div>
     </>
   );

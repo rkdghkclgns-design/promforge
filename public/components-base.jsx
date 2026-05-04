@@ -91,7 +91,7 @@ const Nav = () => {
             <input placeholder="프롬프트, 게임, 멤버 검색…" value={searchVal} readOnly />
             <span className="search-key">⌘K</span>
           </div>
-          <a className="btn btn-discord" href={ui.discordUrl} target="_blank" rel="noreferrer" onClick={(e) => { e.preventDefault(); ui.toast("Discord 채널로 이동합니다", "디스코드"); }}>
+          <a className="btn btn-discord" href={ui.discordUrl} target="_blank" rel="noopener noreferrer">
             <Icon name="discord" className="icn" />
             Discord
           </a>
@@ -215,9 +215,43 @@ const HeroVisual = () => (
 );
 
 // —— Boards ——
+const SLUG_TO_VISUAL = {
+  prompts:   { color: "cyan",   glyph: "spark"   },
+  showcase:  { color: "ember",  glyph: "trophy"  },
+  workflow:  { color: "violet", glyph: "tool"    },
+  qna:       { color: "green",  glyph: "help"    },
+  design:    { color: "cyan",   glyph: "grid"    },
+  "art-sound": { color: "ember", glyph: "palette" },
+  release:   { color: "violet", glyph: "send"    },
+  lounge:    { color: "green",  glyph: "chat"    },
+};
+
 const Boards = () => {
   const ui = window.PF_UI.useUI();
-  const boards = window.PF_DATA.boards;
+  const [boards, setBoards] = useState(window.PF_DATA.boards);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let alive = true;
+    window.PF_API.boards()
+      .then((res) => {
+        if (!alive || !res?.boards?.length) return;
+        const merged = res.boards.map((b) => ({
+          id: b.slug,
+          slug: b.slug,
+          title: b.title,
+          desc: b.description ?? "",
+          posts: b.posts ?? 0,
+          today: b.today ?? 0,
+          ...(SLUG_TO_VISUAL[b.slug] ?? { color: "cyan", glyph: "spark" }),
+        }));
+        setBoards(merged);
+      })
+      .catch(() => { /* keep mock fallback */ })
+      .finally(() => alive && setLoading(false));
+    return () => { alive = false; };
+  }, []);
+
   return (
     <section className="section" id="board">
       <div className="container">
@@ -225,15 +259,15 @@ const Boards = () => {
           <div className="left">
             <div className="kicker">// boards</div>
             <h2>카테고리별 게시판</h2>
-            <div className="sub">8개 보드, 매일 80+ 새 글이 쌓입니다.</div>
+            <div className="sub">{boards.length}개 보드 · 라이브 데이터.</div>
           </div>
           <div className="right">
-            <button className="btn btn-ghost" onClick={() => ui.toast("전체 보드 페이지로 이동", "안내")}>전체보기 <Icon name="arrow" className="icn" /></button>
+            <button className="btn btn-ghost" onClick={() => { document.getElementById("board")?.scrollIntoView({behavior:"smooth"}); ui.toast(`현재 ${boards.length}개 보드 모두 표시 중`, "안내"); }}>전체보기 <Icon name="arrow" className="icn" /></button>
           </div>
         </div>
         <div className="boards-grid">
           {boards.map(b => (
-            <div key={b.id} className={"board-card " + b.color} onClick={() => ui.open("board", b)}>
+            <div key={b.slug || b.id} className={"board-card " + b.color} onClick={() => ui.open("board", b)}>
               <div className="glyph"><Icon name={b.glyph} className="icn" /></div>
               <div className="title">{b.title}</div>
               <div className="desc">{b.desc}</div>
