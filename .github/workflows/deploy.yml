@@ -2,41 +2,35 @@ name: Deploy
 
 on:
   push:
-    branches: [main]
+    branches: [main, master]
   workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     environment: production
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+      ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - name: Install
-        working-directory: promforge-app
         run: npm install --omit=dev --no-audit --no-fund
       - name: Bootstrap admin user
         if: ${{ env.DATABASE_URL != '' }}
-        working-directory: promforge-app
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          JWT_SECRET: ${{ secrets.JWT_SECRET }}
-          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
-          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: node scripts/bootstrap-admin.mjs
 
-      # Replace this with your hosting provider's deploy step.
-      # Examples (commented out):
+      # Replace with your hosting provider's deploy step.
+      # Examples (uncomment and add corresponding secrets):
       #
-      # - name: Deploy to Render
-      #   run: curl -X POST "$RENDER_DEPLOY_HOOK"
-      #
-      # - name: Deploy to Fly.io
-      #   uses: superfly/flyctl-actions/setup-flyctl@master
-      # - run: flyctl deploy --remote-only
-      #   env:
-      #     FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+      #   • Render:  curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
+      #   • Fly.io:  flyctl deploy --remote-only  (FLY_API_TOKEN secret)
+      #   • Railway: railway up                    (RAILWAY_TOKEN secret)
+      #   • Vercel:  vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
       - name: Deploy placeholder
-        run: echo "Configure your deploy provider here. Secrets to wire up are listed in the README."
+        run: echo "Configure your deploy provider here. See README for required secrets."
