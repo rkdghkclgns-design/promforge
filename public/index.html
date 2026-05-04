@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PromForge · 프롬포지 — AI로 게임을 만드는 한국 커뮤니티</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans+KR:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="assets/promforge_logo.png">
+</head>
+<body>
+<div class="page-bg"></div>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script src="js/api.js"></script>
+<script src="data.js"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="ui-system.jsx"></script>
+<script type="text/babel" src="js/auth-override.jsx"></script>
+<script type="text/babel" src="components-base.jsx"></script>
+<script type="text/babel" src="components-sections.jsx"></script>
+<script type="text/babel" src="components-info.jsx"></script>
+<script type="text/babel" src="components-admin.jsx"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+const { Nav, Ticker, Hero, Boards } = window.PF_BASE;
+const { PostsSection, Showcase, Studies, Rail, Tools, CTABanner, Footer } = window.PF_SEC;
+const { AdminPage } = window.PF_ADMIN;
+const { useSession, AdminGuard, NavSession, LoginGate } = window.PF_AUTH;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "heroAccent": "메이커들의 작업장",
+  "heroLede": "Claude, Cursor, Unity, Godot — 한국에서 AI로 게임을 만드는 사람들이 매일 모여 프롬프트를 공유하고, 함께 스터디하고, 출시까지 두드려 보냅니다.",
+  "emberHue": 22,
+  "cyanHue": 195,
+  "showRail": true,
+  "showTicker": true
+}/*EDITMODE-END*/;
+
+// Decorate the original Nav with the live session badge in the right slot.
+const NavWithSession = () => (
+  <div style={{ position: 'relative' }}>
+    <Nav />
+    <div style={{ position: 'absolute', right: 28, top: 14, zIndex: 5 }}>
+      <NavSession />
+    </div>
+  </div>
+);
+
+const TweaksUI = () => {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--ember", `oklch(0.74 0.18 ${tweaks.emberHue})`);
+    root.style.setProperty("--ember-deep", `oklch(0.66 0.21 ${tweaks.emberHue})`);
+    root.style.setProperty("--cyan", `oklch(0.85 0.15 ${tweaks.cyanHue})`);
+    root.style.setProperty("--cyan-soft", `oklch(0.92 0.10 ${tweaks.cyanHue})`);
+  }, [tweaks.emberHue, tweaks.cyanHue]);
+
+  return (
+    <>
+      <window.PF_UI.UIProvider>
+        <App tweaks={tweaks} />
+      </window.PF_UI.UIProvider>
+      <TweaksPanel title="Tweaks">
+        <TweakSection label="Hero copy" />
+        <TweakText label="Accent line" value={tweaks.heroAccent} onChange={v => setTweak("heroAccent", v)} />
+        <TweakText label="Subtitle" value={tweaks.heroLede} onChange={v => setTweak("heroLede", v)} />
+        <TweakSection label="Theme hues" />
+        <TweakSlider label="Ember hue" min={0} max={60} step={1} value={tweaks.emberHue} onChange={v => setTweak("emberHue", v)} />
+        <TweakSlider label="Cyan hue" min={170} max={240} step={1} value={tweaks.cyanHue} onChange={v => setTweak("cyanHue", v)} />
+        <TweakSection label="Layout" />
+        <TweakToggle label="Right rail" value={tweaks.showRail} onChange={v => setTweak("showRail", v)} />
+        <TweakToggle label="LIVE ticker" value={tweaks.showTicker} onChange={v => setTweak("showTicker", v)} />
+      </TweaksPanel>
+    </>
+  );
+};
+
+const App = ({ tweaks }) => {
+  const ui = window.PF_UI.useUI();
+  const { user } = useSession();
+
+  if (ui.route === "admin") {
+    return (
+      <>
+        <NavWithSession />
+        <AdminGuard><AdminPage /></AdminGuard>
+        <Footer />
+      </>
+    );
+  }
+  return (
+  <>
+    <NavWithSession />
+    {tweaks.showTicker && <Ticker />}
+    <Hero tweaks={tweaks} />
+
+    <Boards />
+
+    <section className="section" style={{paddingTop: 0}}>
+      <div className="container">
+        {tweaks.showRail ? (
+          <div className="split">
+            <div>
+              <div className="section-head" style={{marginBottom: 18}}>
+                <div className="left">
+                  <div className="kicker">// feed</div>
+                  <h2>커뮤니티 피드</h2>
+                  <div className="sub">
+                    {user
+                      ? '전체 보드의 글이 한 곳에. 본문은 회원 전용입니다.'
+                      : '미리보기 모드 — 본문 전체 열람은 로그인 후 가능합니다.'}
+                  </div>
+                </div>
+                <div className="right">
+                  <button className="btn btn-ghost" onClick={() => ui.open("filter")}>필터</button>
+                </div>
+              </div>
+              {user ? <PostsSection /> : (
+                <LoginGate label="커뮤니티 피드 본문">
+                  <PostsSection />
+                </LoginGate>
+              )}
+            </div>
+            <Rail />
+          </div>
+        ) : (
+          <>
+            <div className="section-head" style={{marginBottom: 18}}>
+              <div className="left">
+                <div className="kicker">// feed</div>
+                <h2>커뮤니티 피드</h2>
+                <div className="sub">전체 보드의 글이 한 곳에.</div>
+              </div>
+            </div>
+            {user ? <PostsSection /> : <LoginGate label="커뮤니티 피드 본문"><PostsSection /></LoginGate>}
+          </>
+        )}
+      </div>
+    </section>
+
+    <Showcase />
+    <Studies />
+    <Tools />
+    <CTABanner />
+    <Footer />
+  </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById("root")).render(<TweaksUI />);
+</script>
+</body>
+</html>

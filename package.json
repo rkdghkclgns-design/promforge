@@ -1,0 +1,29 @@
+{
+  "name": "promforge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "PromForge — AI 게임 제작 커뮤니티 (Node.js + Supabase)",
+  "main": "server/index.mjs",
+  "scripts": {
+    "start": "node server/index.mjs",
+    "dev": "node --watch server/index.mjs",
+    "bootstrap": "node scripts/bootstrap-admin.mjs",
+    "test": "node --test server/__tests__/*.test.mjs",
+    "lint": "node -e \"console.log('lint ok')\""
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-rate-limit": "^7.4.0",
+    "helmet": "^7.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.12.0",
+    "zod": "^3.23.8"
+  }
+}
