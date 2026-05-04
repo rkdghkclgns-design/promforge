@@ -81,6 +81,9 @@
     studies: () => request('/studies'),
     showcases: () => request('/showcases'),
     subscribe: (email) => request('/subscribe', { method: 'POST', body: { email } }),
+    contact: (body) => request('/contact', { method: 'POST', body }),
+    jamSignup: (body) => request('/jam-signup', { method: 'POST', body }),
+    mentors: () => request('/mentors'),
     admin: {
       overview: () => request('/admin/overview'),
       users: () => request('/admin/users'),

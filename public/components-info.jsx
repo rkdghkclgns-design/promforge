@@ -58,13 +58,25 @@ const PF_INFO = (() => {
   const JamModal = () => {
     const ui = useUI();
     const jams = [
-      { name: "포지 위클리잼 #18 — 'Cozy AI'",     status: "● 진행중",  statusColor: "var(--cyan)",  end: "10/14 23:59",   teams: 24, prize: "Anthropic 크레딧 $200" },
-      { name: "Claude Code 게임잼 2026 가을",       status: "○ 모집중",  statusColor: "var(--ember)", end: "11/01 시작",    teams: 92, prize: "총 상금 ₩5,000,000" },
-      { name: "Solo Dev 48h 챌린지",                 status: "○ 다음달",  statusColor: "var(--violet)", end: "12/12 시작",    teams: 0,  prize: "굿즈 + 인터뷰" },
-      { name: "Korean Folktale Jam",                 status: "✓ 종료",    statusColor: "var(--ink-3)", end: "9/22 종료",     teams: 47, prize: "₩2,000,000 분배 완료" },
-      { name: "GPT × Pixel Art 미니잼",              status: "✓ 종료",    statusColor: "var(--ink-3)", end: "8/30 종료",     teams: 31, prize: "Steam 키 30장" },
+      { slug: "weekly-18",        name: "포지 위클리잼 #18 — 'Cozy AI'",     status: "● 진행중",  statusColor: "var(--cyan)",  end: "10/14 23:59",   teams: 24, prize: "Anthropic 크레딧 $200", open: true },
+      { slug: "claude-code-2026", name: "Claude Code 게임잼 2026 가을",      status: "○ 모집중",  statusColor: "var(--ember)", end: "11/01 시작",    teams: 92, prize: "총 상금 ₩5,000,000",     open: true },
+      { slug: "solo-48h",         name: "Solo Dev 48h 챌린지",                status: "○ 다음달",  statusColor: "var(--violet)", end: "12/12 시작",    teams: 0,  prize: "굿즈 + 인터뷰",         open: true },
+      { slug: "folktale",         name: "Korean Folktale Jam",                status: "✓ 종료",    statusColor: "var(--ink-3)", end: "9/22 종료",     teams: 47, prize: "₩2,000,000 분배 완료",   open: false },
+      { slug: "pixel-art",        name: "GPT × Pixel Art 미니잼",             status: "✓ 종료",    statusColor: "var(--ink-3)", end: "8/30 종료",     teams: 31, prize: "Steam 키 30장",          open: false },
     ];
     const themes = ["Cozy AI", "1-bit Aesthetic", "한국 설화", "1-Button", "AI 협력 NPC", "Sound-only"];
+    const [signed, setSigned] = useState(new Set());
+    const apply = async (jam) => {
+      if (!jam.open) { ui.toast("이미 종료된 잼입니다", "알림"); return; }
+      try {
+        await window.PF_API.jamSignup({ jamSlug: jam.slug });
+        setSigned((s) => new Set([...s, jam.slug]));
+        ui.toast(`'${jam.name}' 신청 완료`, "참여");
+      } catch (err) {
+        if (err?.data?.error === "login_required") { ui.open("login"); }
+        else ui.toast("신청 실패: " + (err.message || "오류"), "오류");
+      }
+    };
     return (
       <>
         <SectionHead kicker="// jam — 게임잼 허브" title="게임잼" sub="2~7일 동안 빠르게 만들고, 함께 플레이하고, 피드백을 주고받는 단기 챌린지." />
@@ -76,18 +88,28 @@ const PF_INFO = (() => {
         ]} />
         <h3 style={{fontSize: 13, color: "var(--ink-2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "10px 0 8px", fontFamily: "JetBrains Mono, monospace"}}>예정 / 진행중</h3>
         {jams.map((j, i) => (
-          <ListRow key={i} title={j.name} sub={`${j.teams ? j.teams + "팀 · " : ""}${j.prize}`}
-            right={<div style={{textAlign: "right"}}>
-              <div style={{fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: j.statusColor}}>{j.status}</div>
-              <div style={{fontSize: 11, color: "var(--ink-3)", marginTop: 2}}>{j.end}</div>
-            </div>}
-            onClick={() => ui.toast(`'${j.name}' 잼 페이지로 이동`, "잼")} />
+          <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:"1px solid var(--line)"}}>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontSize:14,fontWeight:500,color:"var(--ink-0)"}}>{j.name}</div>
+              <div style={{fontSize:12,color:"var(--ink-3)",marginTop:3,fontFamily:"JetBrains Mono, monospace"}}>{j.teams ? j.teams + "팀 · " : ""}{j.prize}</div>
+            </div>
+            <div style={{textAlign:"right",flexShrink:0,marginLeft:12}}>
+              <div style={{fontFamily:"JetBrains Mono, monospace",fontSize:11,color:j.statusColor}}>{j.status}</div>
+              <div style={{fontSize:11,color:"var(--ink-3)",marginTop:2,marginBottom:6}}>{j.end}</div>
+              {j.open && (
+                <button className="btn btn-ghost" style={{padding:"4px 10px",fontSize:11}}
+                        disabled={signed.has(j.slug)}
+                        onClick={() => apply(j)}>
+                  {signed.has(j.slug) ? "✓ 신청완료" : "참가신청"}
+                </button>
+              )}
+            </div>
+          </div>
         ))}
         <h3 style={{fontSize: 13, color: "var(--ink-2)", textTransform: "uppercase", letterSpacing: "0.08em", margin: "18px 0 8px", fontFamily: "JetBrains Mono, monospace"}}>최근 테마</h3>
         <div style={{marginBottom: 16}}>{themes.map((t, i) => <Tag key={i} color={i % 2 ? "var(--ember)" : "var(--cyan)"}>#{t}</Tag>)}</div>
         <div className="actions">
           <button className="btn btn-ghost" onClick={ui.close}>닫기</button>
-          <button className="btn btn-primary" onClick={() => { ui.close(); ui.toast("위클리잼 #18에 참여 신청 완료", "참여"); }}>현재 잼 참여하기</button>
         </div>
       </>
     );
@@ -200,7 +222,17 @@ const PF_INFO = (() => {
   // ────────────────────── 출시 체크리스트 ──────────────────────
   const ChecklistModal = () => {
     const ui = useUI();
-    const [done, setDone] = useState(new Set([0, 1, 4]));
+    const STORAGE_KEY = "pf_launch_checklist";
+    const [done, setDone] = useState(() => {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) return new Set(JSON.parse(raw));
+      } catch { /* noop */ }
+      return new Set();
+    });
+    React.useEffect(() => {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify([...done])); } catch { /* noop */ }
+    }, [done]);
     const sections = [
       { name: "PRE-PRODUCTION", items: [
         { id: 0, t: "장르/톤/타깃 정의서 작성" },
@@ -254,8 +286,8 @@ const PF_INFO = (() => {
           ))}
         </div>
         <div className="actions">
-          <button className="btn btn-ghost" onClick={ui.close}>닫기</button>
-          <button className="btn btn-primary" onClick={() => ui.toast("체크리스트 저장 완료", "저장")}>저장하기</button>
+          <button className="btn btn-ghost" onClick={() => { setDone(new Set()); ui.toast("체크리스트가 초기화됐습니다", "초기화"); }}>초기화</button>
+          <button className="btn btn-primary" onClick={() => { ui.close(); ui.toast(`${done.size}/${total} 항목 자동 저장됨 (브라우저)`, "저장"); }}>닫기</button>
         </div>
       </>
     );
@@ -264,7 +296,7 @@ const PF_INFO = (() => {
   // ────────────────────── 멘토 디렉토리 ──────────────────────
   const MentorsModal = () => {
     const ui = useUI();
-    const mentors = [
+    const FALLBACK = [
       { name: "이도현", handle: "@dohyun.dev",      area: "Unity / 시스템 디자인",      years: 11, rate: "₩80k/h",  spots: 2, avatar: "DH", color: "var(--cyan)" },
       { name: "박혜진", handle: "@hyejin.kr",        area: "내러티브 / 분기 설계",       years: 7,  rate: "₩60k/h",  spots: 1, avatar: "HJ", color: "var(--ember)" },
       { name: "최승민", handle: "@soundlab.choi",   area: "사운드 / Suno 워크플로",    years: 9,  rate: "₩70k/h",  spots: 0, avatar: "SC", color: "var(--violet)" },
@@ -272,6 +304,26 @@ const PF_INFO = (() => {
       { name: "민수아", handle: "@art.minji",        area: "픽셀 / Stable Diffusion",   years: 6,  rate: "₩55k/h",  spots: 3, avatar: "MS", color: "var(--ember)" },
       { name: "윤재호", handle: "@dev_yoon",         area: "Cursor 자동화 / DevOps",   years: 8,  rate: "₩75k/h",  spots: 2, avatar: "JH", color: "var(--cyan)" },
     ];
+    const [mentors, setMentors] = useState(FALLBACK);
+    React.useEffect(() => {
+      window.PF_API.mentors().then((res) => {
+        if (!res?.mentors?.length) return;
+        const colors = ["var(--cyan)","var(--ember)","var(--violet)","var(--green)"];
+        const live = res.mentors.map((m, i) => ({
+          name: m.nickname || m.username,
+          handle: "@" + m.username,
+          area: m.role_label,
+          years: 0,
+          rate: "무료 매칭",
+          spots: 3,
+          avatar: (m.nickname || m.username).slice(0, 2).toUpperCase(),
+          color: colors[i % colors.length],
+          since: m.since,
+        }));
+        // Live mentors first, then fallback (until directory grows)
+        setMentors([...live, ...FALLBACK]);
+      }).catch(() => { /* keep fallback */ });
+    }, []);
     return (
       <>
         <SectionHead kicker="// mentors — 1:1 멘토" title="멘토 디렉토리" sub="3년 이상 출시 경험이 있는 메이커들이 짧게 도와줍니다. 첫 30분은 무료 매칭." />
@@ -375,47 +427,55 @@ const PF_INFO = (() => {
   // ────────────────────── 문의 ──────────────────────
   const ContactModal = () => {
     const ui = useUI();
-    const [type, setType] = useState("general");
-    const [msg, setMsg] = useState("");
+    const [form, setForm] = useState({ category: "general", subject: "", message: "", name: "", email: "" });
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState(null);
     const types = [
-      { id: "general",  label: "일반 문의" },
-      { id: "bug",      label: "버그 제보" },
-      { id: "partner",  label: "파트너십" },
-      { id: "press",    label: "취재 / 인터뷰" },
-      { id: "abuse",    label: "신고 / 위반" },
+      { id: "general",     label: "일반 문의" },
+      { id: "bug",         label: "버그 제보" },
+      { id: "partnership", label: "파트너십" },
+      { id: "press",       label: "취재 / 인터뷰" },
+      { id: "other",       label: "기타" },
     ];
+    const submit = async () => {
+      setError(null);
+      if (!form.subject.trim() || !form.message.trim()) { setError("제목과 내용을 입력해주세요."); return; }
+      setBusy(true);
+      try {
+        await window.PF_API.contact(form);
+        ui.close();
+        ui.toast("문의가 접수됐습니다 · 24시간 내 회신", "문의");
+      } catch (err) {
+        setError("전송 실패: " + (err.message || "오류"));
+      } finally { setBusy(false); }
+    };
     return (
       <>
-        <SectionHead kicker="// contact — 문의" title="문의하기" sub="평일 24시간 내 답변. 신고는 별도 채널로 우선 처리." />
+        <SectionHead kicker="// contact — 문의" title="문의하기" sub="모든 문의는 DB에 안전하게 기록됩니다. 평일 24시간 내 회신." />
         <div style={{marginBottom: 14}}>
           <div style={{fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8}}>유형</div>
           <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
             {types.map(t => (
-              <button key={t.id} onClick={() => setType(t.id)} style={{
+              <button key={t.id} onClick={() => setForm({...form, category: t.id})} style={{
                 padding: "7px 12px", borderRadius: 6, fontSize: 12, cursor: "pointer",
-                background: type === t.id ? "rgba(60,227,255,0.12)" : "transparent",
-                border: "1px solid " + (type === t.id ? "rgba(60,227,255,0.4)" : "var(--line)"),
-                color: type === t.id ? "var(--cyan)" : "var(--ink-2)",
+                background: form.category === t.id ? "rgba(60,227,255,0.12)" : "transparent",
+                border: "1px solid " + (form.category === t.id ? "rgba(60,227,255,0.4)" : "var(--line)"),
+                color: form.category === t.id ? "var(--cyan)" : "var(--ink-2)",
                 fontFamily: "JetBrains Mono, monospace",
               }}>{t.label}</button>
             ))}
           </div>
         </div>
-        <div style={{marginBottom: 14}}>
-          <div style={{fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 8}}>내용</div>
-          <textarea value={msg} onChange={e => setMsg(e.target.value)} placeholder="자세한 상황을 적어주세요..." style={{
-            width: "100%", minHeight: 130, resize: "vertical", padding: 12,
-            background: "rgba(11,14,26,0.6)", border: "1px solid var(--line)", borderRadius: 8,
-            color: "var(--ink-0)", fontSize: 13.5, lineHeight: 1.55,
-            fontFamily: "IBM Plex Sans KR, sans-serif",
-          }}/>
+        <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:10}}>
+          <label className="field" style={{margin:0}}><label>이름 (선택)</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="홍길동" /></label>
+          <label className="field" style={{margin:0}}><label>이메일 (회신 받을 곳)</label><input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="you@studio.com" /></label>
         </div>
-        <div style={{fontFamily: "JetBrains Mono, monospace", fontSize: 11, color: "var(--ink-3)"}}>
-          또는 직접: <b style={{color: "var(--cyan)"}}>hello@promforge.kr</b> · 신고: <b style={{color: "var(--ember)"}}>report@promforge.kr</b>
-        </div>
-        <div className="actions" style={{marginTop: 18}}>
-          <button className="btn btn-ghost" onClick={ui.close}>닫기</button>
-          <button className="btn btn-primary" onClick={() => { ui.close(); ui.toast("문의가 접수됐습니다 · 24시간 내 회신", "문의"); }}>보내기</button>
+        <label className="field"><label>제목</label><input value={form.subject} onChange={e => setForm({...form, subject: e.target.value})} placeholder="간단한 제목" maxLength={200} /></label>
+        <label className="field"><label>내용</label><textarea rows={6} value={form.message} onChange={e => setForm({...form, message: e.target.value})} placeholder="자세한 상황을 적어주세요..." maxLength={4000} /></label>
+        {error && <div style={{color:'var(--ember)', fontSize:13, marginBottom:8}}>{error}</div>}
+        <div className="actions" style={{marginTop: 6}}>
+          <button className="btn btn-ghost" onClick={ui.close} disabled={busy}>닫기</button>
+          <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? "전송 중…" : "보내기"}</button>
         </div>
       </>
     );

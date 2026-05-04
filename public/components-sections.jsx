@@ -321,7 +321,7 @@ const Footer = () => {
           <div className="foot-col">
             <h5>리소스</h5>
             <ul>
-              <li><a href="#" onClick={open("library")}>프롬프트 라이브러리</a></li>
+              <li><a href="#board:prompts" onClick={(e) => { e.preventDefault(); ui.setRoute("board:prompts"); }}>프롬프트 라이브러리</a></li>
               <li><a href="#" onClick={open("toolguide")}>툴 비교 가이드</a></li>
               <li><a href="#" onClick={open("checklist")}>출시 체크리스트</a></li>
               <li><a href="#" onClick={open("mentors")}>멘토 디렉토리</a></li>
@@ -340,9 +340,9 @@ const Footer = () => {
             <h5>SNS</h5>
             <ul>
               <li><a href={ui.discordUrl} target="_blank" rel="noopener noreferrer">Discord</a></li>
-              <li><a href="#" onClick={open("sns", "youtube")}>YouTube</a></li>
-              <li><a href="#" onClick={open("sns", "twitter")}>X / Twitter</a></li>
-              <li><a href="#" onClick={open("sns", "github")}>GitHub</a></li>
+              <li><a href="https://www.youtube.com/results?search_query=AI+%EA%B2%8C%EC%9E%84+%EC%A0%9C%EC%9E%91+%ED%95%9C%EA%B5%AD" target="_blank" rel="noopener noreferrer">YouTube</a></li>
+              <li><a href="https://x.com/search?q=AI%20%EA%B2%8C%EC%9E%84%20%EC%A0%9C%EC%9E%91&f=live" target="_blank" rel="noopener noreferrer">X / Twitter</a></li>
+              <li><a href="https://github.com/rkdghkclgns-design/promforge" target="_blank" rel="noopener noreferrer">GitHub</a></li>
             </ul>
           </div>
         </div>

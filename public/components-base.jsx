@@ -342,12 +342,20 @@ const BoardDetailPage = ({ slug }) => {
   return (
     <section className="section" style={{paddingTop: 28}}>
       <div className="container">
-        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:18,fontSize:13,color:"var(--ink-3)"}}>
-          <a href="#home" onClick={(e) => { e.preventDefault(); ui.setRoute("home"); }} style={{cursor:"pointer"}}>홈</a>
-          <span>›</span>
-          <a href="#home" onClick={(e) => { e.preventDefault(); ui.setRoute("home"); setTimeout(() => document.getElementById("board")?.scrollIntoView({behavior:"smooth"}), 60); }} style={{cursor:"pointer"}}>게시판</a>
-          <span>›</span>
-          <span style={{color:"var(--ink-1)"}}>{board?.title || "…"}</span>
+        <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:18}}>
+          <button className="btn btn-ghost"
+                  onClick={() => {
+                    if (window.history.length > 1) window.history.back();
+                    else { ui.setRoute("home"); setTimeout(() => document.getElementById("board")?.scrollIntoView({behavior:"smooth"}), 60); }
+                  }}
+                  style={{padding:"6px 12px",fontSize:13}}>← 뒤로</button>
+          <div style={{display:"flex",alignItems:"center",gap:8,fontSize:13,color:"var(--ink-3)"}}>
+            <a href="#home" onClick={(e) => { e.preventDefault(); ui.setRoute("home"); }} style={{cursor:"pointer"}}>홈</a>
+            <span>›</span>
+            <a href="#home" onClick={(e) => { e.preventDefault(); ui.setRoute("home"); setTimeout(() => document.getElementById("board")?.scrollIntoView({behavior:"smooth"}), 60); }} style={{cursor:"pointer"}}>게시판</a>
+            <span>›</span>
+            <span style={{color:"var(--ink-1)"}}>{board?.title || "…"}</span>
+          </div>
         </div>
 
         <div className="section-head" style={{marginBottom: 18}}>
