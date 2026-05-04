@@ -14,6 +14,7 @@ jobs:
       JWT_SECRET: ${{ secrets.JWT_SECRET }}
       ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
       ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+      RENDER_DEPLOY_HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -24,13 +25,13 @@ jobs:
       - name: Bootstrap admin user
         if: ${{ env.DATABASE_URL != '' }}
         run: node scripts/bootstrap-admin.mjs
-
-      # Replace with your hosting provider's deploy step.
-      # Examples (uncomment and add corresponding secrets):
-      #
-      #   • Render:  curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK }}"
-      #   • Fly.io:  flyctl deploy --remote-only  (FLY_API_TOKEN secret)
-      #   • Railway: railway up                    (RAILWAY_TOKEN secret)
-      #   • Vercel:  vercel deploy --prod --token=${{ secrets.VERCEL_TOKEN }}
-      - name: Deploy placeholder
-        run: echo "Configure your deploy provider here. See README for required secrets."
+      # Render Free tier auto-deploys from GitHub when the service is created
+      # from render.yaml. The deploy hook is optional — only fires if you set the
+      # RENDER_DEPLOY_HOOK secret to force a redeploy bypassing autoDeploy.
+      - name: Trigger Render deploy hook
+        if: ${{ env.RENDER_DEPLOY_HOOK != '' }}
+        run: curl -fsSL -X POST "$RENDER_DEPLOY_HOOK" || echo "deploy hook returned non-zero (non-fatal)"
+      - name: Deploy summary
+        run: |
+          echo "::notice::Render Free tier hosts the live app via render.yaml blueprint."
+          echo "::notice::Configure on Render once: import this repo as a Blueprint, fill in DATABASE_URL / SUPABASE_ANON_KEY / ADMIN_PASSWORD."

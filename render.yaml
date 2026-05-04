@@ -1,0 +1,34 @@
+# Render Blueprint — Free tier deploy.
+# https://render.com/docs/blueprint-spec
+# After importing this repo on Render, paste the secret values for the env vars
+# marked sync:false in the dashboard.
+services:
+  - type: web
+    name: promforge
+    runtime: node
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: npm install --omit=dev --no-audit --no-fund
+    startCommand: node server/index.mjs
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: SUPABASE_URL
+        value: https://etasxbaorwgjoofdxean.supabase.co
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: GEMINI_FUNCTION_NAME
+        value: gemini-search
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false

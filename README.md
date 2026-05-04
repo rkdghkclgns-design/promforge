@@ -93,9 +93,28 @@ Edge Function 은 `verify_jwt: true` 로 배포되어 있고, Node 가 `SUPABASE
 | GET  | `/api/admin/subscribers` | admin |
 | POST | `/api/gemini/search` | user |
 
-## CI/CD
+## CI/CD + 무료 배포 (Render Free tier)
 
-`.github/workflows/ci.yml` 이 푸시/PR 마다 lint + test 를 돌리고, `deploy.yml` 은 `main` 브랜치 푸시 시 (선택) 호스팅 대상에 배포합니다.
+`.github/workflows/ci.yml` 이 푸시/PR 마다 lint + test 를 돌리고, `deploy.yml` 은 `main` 브랜치 푸시 시 admin 부트스트랩 + Render deploy hook 을 호출합니다.
+
+### Render 무료 배포 — 1회 설정
+
+1. https://dashboard.render.com → **New → Blueprint** → 이 저장소 선택.
+2. Render 가 `render.yaml` 을 읽고 Web Service 한 개를 자동 생성합니다 (plan: free, region: singapore).
+3. 대시보드에서 다음 시크릿 값들을 채워넣으세요 (Blueprint 에 `sync: false` 로 표시된 항목):
+   - `DATABASE_URL` — Supabase 의 **Pooler URI** (Project Settings → Database → Connection string)
+   - `SUPABASE_ANON_KEY` — `sb_publishable_v9Hxgl906_7egC7Nim0MdQ_jN54qu5G`
+   - `ADMIN_PASSWORD` — `1124`
+4. Render 가 첫 빌드를 돌리고 `https://promforge.onrender.com` 같은 URL 을 발급합니다.
+5. 이후 `main` 푸시는 Render 가 자동 재배포합니다.
+
+#### 무료 tier 한계 사항
+- 15분 동안 트래픽이 없으면 인스턴스가 sleep → 첫 요청은 콜드 스타트 ~30초.
+- 월 750시간 (1개 인스턴스 풀가동 가능).
+- 빌드 분당 500분 한도.
+
+#### (선택) GitHub → Render deploy hook 강제 트리거
+Render Service 의 **Settings → Deploy Hook** URL을 복사하여 GitHub Secret `RENDER_DEPLOY_HOOK` 으로 등록하면, push 외에도 워크플로가 명시적으로 재배포를 트리거합니다.
 
 ## 보안
 
