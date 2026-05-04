@@ -19,35 +19,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure for static (no-API) preview
+      - name: Stage static site
         run: |
           mkdir -p site
           cp -r public/* site/
-          # If a backend URL is set as the PUBLIC_API_BASE repo variable, the frontend
-          # talks to that. Otherwise the api.js falls back to /api which 404s on Pages,
-          # and the design renders in anonymous-preview mode.
-          if [ -n "${{ vars.PUBLIC_API_BASE }}" ]; then
-            sed -i "s|const base = '/api';|const base = '${{ vars.PUBLIC_API_BASE }}/api';|" site/js/api.js
-            echo "::notice::Frontend wired to API base: ${{ vars.PUBLIC_API_BASE }}"
-          else
-            echo "::notice::No PUBLIC_API_BASE variable set — Pages site runs in anonymous preview mode."
-          fi
-          # Inject a small banner so visitors know this is the static preview.
-          cat > site/__pages_banner.html <<'HTML'
-          <div id="pf-pages-banner" style="position:fixed;bottom:14px;left:14px;z-index:9999;background:rgba(20,26,46,0.9);border:1px solid rgba(120,180,230,0.22);border-radius:10px;padding:8px 12px;font-family:JetBrains Mono,monospace;font-size:11px;color:#c8d2e8;letter-spacing:0.05em;backdrop-filter:blur(6px)">
-            STATIC PREVIEW · 로그인 / 관리자 / Gemini 기능은 Render 백엔드에서 동작합니다
-          </div>
-          HTML
-          # Append the banner just before </body> in index.html.
-          python3 -c "
-          import pathlib, re
-          p = pathlib.Path('site/index.html')
-          html = p.read_text(encoding='utf-8')
-          banner = pathlib.Path('site/__pages_banner.html').read_text(encoding='utf-8')
-          html = html.replace('</body>', banner + '\n</body>')
-          p.write_text(html, encoding='utf-8')
-          "
-          rm site/__pages_banner.html
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
