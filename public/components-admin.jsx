@@ -313,6 +313,7 @@ const PF_ADMIN = (() => {
 
     const tabs = [
       { id: "overview", label: "개요" },
+      { id: "banners",  label: "공지 관리" },
       { id: "users",    label: "사용자" },
       { id: "content",  label: "콘텐츠" },
       { id: "engagement", label: "참여도" },
@@ -371,6 +372,7 @@ const PF_ADMIN = (() => {
 
         <div className="container admin-main">
           {tab === "overview" && <OverviewTab />}
+          {tab === "banners" && <BannersTab />}
           {tab === "users" && <UsersTab />}
           {tab === "content" && <ContentTab />}
           {tab === "engagement" && <EngagementTab />}
@@ -436,6 +438,191 @@ const PF_ADMIN = (() => {
   // ─────────── User actions store ───────────
   // We mutate the user list via state lifted in UsersTab.
 
+
+  // ────────────────────── 공지(배너) 관리 ──────────────────────
+  const blank = () => ({
+    kind: "rolling", title: "", subtitle: "", body: "",
+    link_url: "", link_label: "자세히 보기", accent: "cyan",
+    starts_at: new Date().toISOString().slice(0, 16),
+    ends_at: "",
+    priority: 50, active: true,
+  });
+  const toLocalInput = (iso) => iso ? new Date(iso).toISOString().slice(0, 16) : "";
+  const fromLocalInput = (s) => s ? new Date(s).toISOString() : null;
+
+  const BannersTab = () => {
+    const ui = window.PF_UI.useUI();
+    const [banners, setBanners] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [editing, setEditing] = useState(null); // null | 'new' | banner.id
+    const [form, setForm] = useState(blank());
+    const [busy, setBusy] = useState(false);
+
+    const load = () => {
+      setLoading(true);
+      window.PF_API.admin.banners()
+        .then((r) => setBanners(r.banners || []))
+        .catch((e) => ui.toast("불러오기 실패: " + (e.message || ""), "오류"))
+        .finally(() => setLoading(false));
+    };
+    useEffect(load, []);
+
+    const startNew = () => { setForm(blank()); setEditing("new"); };
+    const startEdit = (b) => {
+      setForm({
+        kind: b.kind, title: b.title, subtitle: b.subtitle ?? "", body: b.body ?? "",
+        link_url: b.link_url ?? "", link_label: b.link_label ?? "자세히 보기",
+        accent: b.accent ?? "cyan",
+        starts_at: toLocalInput(b.starts_at),
+        ends_at: toLocalInput(b.ends_at),
+        priority: b.priority ?? 0, active: b.active,
+      });
+      setEditing(b.id);
+    };
+    const cancel = () => { setEditing(null); setForm(blank()); };
+
+    const save = async () => {
+      if (!form.title.trim()) { ui.toast("제목을 입력해주세요", "오류"); return; }
+      setBusy(true);
+      const payload = {
+        ...form,
+        starts_at: fromLocalInput(form.starts_at),
+        ends_at: form.ends_at ? fromLocalInput(form.ends_at) : null,
+        priority: Number(form.priority) || 0,
+      };
+      try {
+        if (editing === "new") await window.PF_API.admin.createBanner(payload);
+        else await window.PF_API.admin.updateBanner(editing, payload);
+        ui.toast("저장됐습니다", "공지");
+        cancel();
+        load();
+      } catch (err) { ui.toast("저장 실패: " + (err.message || ""), "오류"); }
+      finally { setBusy(false); }
+    };
+
+    const toggleActive = async (b) => {
+      try {
+        await window.PF_API.admin.updateBanner(b.id, { active: !b.active });
+        load();
+      } catch (err) { ui.toast("실패: " + (err.message || ""), "오류"); }
+    };
+
+    const remove = async (b) => {
+      if (!confirm(`'${b.title}' 공지를 삭제할까요?`)) return;
+      try {
+        await window.PF_API.admin.deleteBanner(b.id);
+        ui.toast("삭제됐습니다", "공지");
+        load();
+      } catch (err) { ui.toast("실패: " + (err.message || ""), "오류"); }
+    };
+
+    return (
+      <div>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
+          <div>
+            <div className="kicker">// banners — 롤링/팝업 공지</div>
+            <h2 style={{margin:"4px 0 0"}}>공지 관리</h2>
+            <div style={{fontSize:13,color:"var(--ink-2)",marginTop:6}}>
+              롤링 배너는 우상단에 자동 순환 표시, 팝업은 페이지 진입 시 1회 모달.
+              연결 링크는 <span className="mono" style={{color:"var(--cyan)"}}>#board:prompts</span> 같은 내부 라우트나 외부 URL 모두 허용.
+            </div>
+          </div>
+          <button className="btn btn-primary" onClick={startNew}>＋ 새 공지</button>
+        </div>
+
+        {editing && (
+          <div className="pf-banner-form">
+            <label><span className="lbl">유형</span>
+              <select value={form.kind} onChange={(e) => setForm({...form, kind: e.target.value})}>
+                <option value="rolling">롤링 배너 (우상단)</option>
+                <option value="popup">팝업 (페이지 진입 시)</option>
+              </select>
+            </label>
+            <label><span className="lbl">강조 컬러</span>
+              <select value={form.accent} onChange={(e) => setForm({...form, accent: e.target.value})}>
+                <option value="cyan">cyan</option>
+                <option value="ember">ember</option>
+                <option value="violet">violet</option>
+                <option value="green">green</option>
+                <option value="spark">spark</option>
+              </select>
+            </label>
+            <label className="full"><span className="lbl">제목</span>
+              <input value={form.title} onChange={(e) => setForm({...form, title: e.target.value})} placeholder="이주의 픽: 안개의 도서관" />
+            </label>
+            <label className="full"><span className="lbl">서브타이틀 (선택)</span>
+              <input value={form.subtitle} onChange={(e) => setForm({...form, subtitle: e.target.value})} placeholder="WK 18 · WEEKLY FORGE" />
+            </label>
+            <label className="full"><span className="lbl">본문 (선택)</span>
+              <textarea value={form.body} onChange={(e) => setForm({...form, body: e.target.value})} placeholder="4주간 GPT-4o로만 빌드한 텍스트 어드벤처. 분기 240+." />
+            </label>
+            <label><span className="lbl">연결 링크</span>
+              <input value={form.link_url} onChange={(e) => setForm({...form, link_url: e.target.value})} placeholder="#board:prompts 또는 https://..." />
+            </label>
+            <label><span className="lbl">링크 텍스트</span>
+              <input value={form.link_label} onChange={(e) => setForm({...form, link_label: e.target.value})} placeholder="자세히 보기" />
+            </label>
+            <label><span className="lbl">노출 시작</span>
+              <input type="datetime-local" value={form.starts_at} onChange={(e) => setForm({...form, starts_at: e.target.value})} />
+            </label>
+            <label><span className="lbl">노출 종료 (비우면 무기한)</span>
+              <input type="datetime-local" value={form.ends_at} onChange={(e) => setForm({...form, ends_at: e.target.value})} />
+            </label>
+            <label><span className="lbl">우선순위 (높을수록 먼저)</span>
+              <input type="number" value={form.priority} onChange={(e) => setForm({...form, priority: e.target.value})} />
+            </label>
+            <label><span className="lbl">활성</span>
+              <select value={String(form.active)} onChange={(e) => setForm({...form, active: e.target.value === "true"})}>
+                <option value="true">노출</option>
+                <option value="false">숨김</option>
+              </select>
+            </label>
+            <div className="full" style={{display:"flex",gap:8,justifyContent:"flex-end",marginTop:6}}>
+              <button className="btn btn-ghost" onClick={cancel} disabled={busy}>취소</button>
+              <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? "저장 중…" : "저장"}</button>
+            </div>
+          </div>
+        )}
+
+        <div style={{border:"1px solid var(--line)",borderRadius:10,overflow:"hidden",background:"rgba(20,26,46,0.3)"}}>
+          <div className="pf-banner-row head">
+            <div>제목</div><div>유형</div><div>우선순위</div><div>노출 종료</div><div>상태</div><div>관리</div>
+          </div>
+          {loading ? (
+            <div style={{padding:32,textAlign:"center",color:"var(--ink-3)"}}>불러오는 중…</div>
+          ) : banners.length === 0 ? (
+            <div style={{padding:32,textAlign:"center",color:"var(--ink-3)"}}>아직 등록된 공지가 없습니다.</div>
+          ) : banners.map((b) => (
+            <div key={b.id} className="pf-banner-row">
+              <div>
+                <div style={{fontWeight:500,color:"var(--ink-0)",marginBottom:2}}>{b.title}</div>
+                <div style={{fontSize:11,color:"var(--ink-3)",fontFamily:"JetBrains Mono, monospace"}}>{b.subtitle || "—"}</div>
+              </div>
+              <div style={{fontFamily:"JetBrains Mono, monospace",fontSize:11,color: b.kind === "rolling" ? "var(--cyan)" : "var(--ember)"}}>
+                {b.kind === "rolling" ? "롤링" : "팝업"}
+              </div>
+              <div style={{fontFamily:"JetBrains Mono, monospace",fontSize:12}}>{b.priority}</div>
+              <div style={{fontSize:11,color:"var(--ink-3)"}}>{b.ends_at ? new Date(b.ends_at).toLocaleDateString("ko-KR") : "무기한"}</div>
+              <div>
+                <button onClick={() => toggleActive(b)} style={{
+                  padding:"3px 9px",fontSize:11,borderRadius:4,
+                  background: b.active ? "rgba(110,231,160,0.12)" : "rgba(255,138,60,0.12)",
+                  border: b.active ? "1px solid rgba(110,231,160,0.4)" : "1px solid rgba(255,138,60,0.4)",
+                  color: b.active ? "var(--green)" : "var(--ember)",
+                  cursor:"pointer", fontFamily:"JetBrains Mono, monospace"}}>
+                  {b.active ? "● 노출" : "○ 숨김"}
+                </button>
+              </div>
+              <div style={{display:"flex",gap:6}}>
+                <button className="btn btn-ghost" style={{padding:"4px 10px",fontSize:11}} onClick={() => startEdit(b)}>편집</button>
+                <button className="btn btn-ghost" style={{padding:"4px 10px",fontSize:11,color:"var(--ember)"}} onClick={() => remove(b)}>삭제</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
 
   const LiveKPI = () => {
     const [kpi, setKpi] = useState(null);
