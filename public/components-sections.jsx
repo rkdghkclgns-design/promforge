@@ -68,6 +68,7 @@ const PostsSection = () => {
               </div>
               <div className="meta">
                 <span className="author">@{p.author}</span>
+                {window.PF_BADGE && <window.PF_BADGE.LevelBadge level={p.author_level} role={p.author_role} />}
                 <span>·</span>
                 <span>{p.time}</span>
                 {p.badge ? <span className="badge">{p.badge}</span> : null}
@@ -76,6 +77,7 @@ const PostsSection = () => {
             <div className="stats">
               <span><I2 name="eye" /> {(p.views || 0).toLocaleString()}</span>
               <span className={p.likes > 100 ? "hot" : ""}><I2 name="heart" /> {p.likes || 0}</span>
+              <span title="찜 수">★ {p.bookmarks || 0}</span>
               <span><I2 name="msg" /> {p.replies || 0}</span>
             </div>
           </div>

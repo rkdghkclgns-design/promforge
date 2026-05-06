@@ -86,6 +86,8 @@
     mentors: () => request('/mentors'),
     levels: () => request('/levels'),
     topMakers: () => request('/top-makers'),
+    toggleBookmark: (postId) => request(`/posts/${postId}/bookmark`, { method: 'POST' }),
+    myBookmarks: () => request('/me/bookmarks'),
     banners: (kind) => request('/banners' + (kind ? `?kind=${kind}` : '')),
     comments: (postId) => request(`/posts/${postId}/comments`),
     addComment: (postId, body) => request(`/posts/${postId}/comments`, { method: 'POST', body: { body } }),

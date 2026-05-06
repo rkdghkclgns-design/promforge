@@ -532,6 +532,7 @@ const BoardDetailPage = ({ slug }) => {
                 <div className="t">{p.title}</div>
                 <div className="meta">
                   <span className="author">@{p.author}</span>
+                  {window.PF_BADGE && <window.PF_BADGE.LevelBadge level={p.author_level} role={p.author_role} />}
                   <span>·</span>
                   <span>{p.time}</span>
                   {p.badge ? <span className="badge">{p.badge}</span> : null}
@@ -540,6 +541,7 @@ const BoardDetailPage = ({ slug }) => {
               <div className="stats">
                 <span>👁 {(p.views || 0).toLocaleString()}</span>
                 <span>♥ {p.likes || 0}</span>
+                <span title="찜">★ {p.bookmarks || 0}</span>
                 <span>💬 {p.replies || 0}</span>
               </div>
             </div>

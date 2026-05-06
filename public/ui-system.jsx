@@ -129,6 +129,9 @@ const PostModal = ({ post }) => {
   const [comments, setComments] = useUS([]);
   const [commentText, setCommentText] = useUS("");
   const [posting, setPosting] = useUS(false);
+  const [bookmarked, setBookmarked] = useUS(post.is_bookmarked ?? false);
+  const [bookmarkCount, setBookmarkCount] = useUS(post.bookmarks ?? 0);
+  const [bmBusy, setBmBusy] = useUS(false);
   const session = window.PF_AUTH?.useSession?.() ?? { user: null };
 
   // Hydrate full post + comments
@@ -144,7 +147,11 @@ const PostModal = ({ post }) => {
             'x-pf-token': window.PF_API._internal.getToken() || '',
           },
         }).then(r => r.json());
-        if (alive && detail.post) setFull({ ...post, ...detail.post });
+        if (alive && detail.post) {
+          setFull({ ...post, ...detail.post });
+          if (detail.post.is_bookmarked != null) setBookmarked(detail.post.is_bookmarked);
+          if (detail.post.bookmarks != null) setBookmarkCount(detail.post.bookmarks);
+        }
       } catch { /* */ }
       try {
         const c = await window.PF_API.comments(post.id);
@@ -208,6 +215,23 @@ const PostModal = ({ post }) => {
     }
   };
 
+  const onBookmark = async () => {
+    if (!post.id) return;
+    if (!session.user) { open('login'); return; }
+    if (bmBusy) return;
+    setBmBusy(true);
+    try {
+      const r = await window.PF_API.toggleBookmark(post.id);
+      setBookmarked(r.bookmarked);
+      setBookmarkCount(r.bookmarks ?? bookmarkCount);
+      toast(r.bookmarked ? "찜 목록에 추가되었습니다 (+2P)" : "찜이 해제되었습니다", "찜");
+    } catch (err) {
+      const code = err?.data?.error;
+      if (code === "login_required") open('login');
+      else toast("실패: " + (err.message || ""), "오류");
+    } finally { setBmBusy(false); }
+  };
+
   const md = window.PF_MD?.renderMarkdown;
 
   return (
@@ -216,9 +240,11 @@ const PostModal = ({ post }) => {
       <h2>{full.title}</h2>
       <div className="meta-row">
         <span>@{full.author}</span>
+        {window.PF_BADGE && <window.PF_BADGE.LevelBadge level={full.author_level} role={full.author_role} />}
         {full.time && <span>· {full.time}</span>}
         {full.views != null && <span>· 👁 {Number(full.views).toLocaleString()}</span>}
         <span>· 💬 {comments.length}</span>
+        <span>· ★ {bookmarkCount}</span>
         {full.badge ? <span style={{color: "var(--ember)"}}>· {full.badge}</span> : null}
       </div>
       {full.image_url && (
@@ -234,6 +260,14 @@ const PostModal = ({ post }) => {
       <div className="actions">
         <button className="btn btn-ghost" onClick={onLike} disabled={busy}>
           {liked ? "♥" : "♡"} 추천 {likes}
+        </button>
+        <button className="btn btn-ghost" onClick={onBookmark} disabled={bmBusy}
+                style={{
+                  color: bookmarked ? "var(--ember)" : undefined,
+                  borderColor: bookmarked ? "rgba(255,138,60,0.45)" : undefined,
+                  background: bookmarked ? "rgba(255,138,60,0.08)" : undefined,
+                }}>
+          {bookmarked ? "★" : "☆"} 찜 {bookmarkCount}
         </button>
         <button className="btn btn-ghost" onClick={() => { navigator.clipboard?.writeText(location.href).then(() => toast("링크가 복사되었습니다")).catch(() => toast("복사 실패", "오류")); }}>링크 복사</button>
       </div>
@@ -988,27 +1022,42 @@ const FilterModal = () => {
 
 const ForgeModal = () => {
   const { toast, close, open } = useUI();
-  const [tab, setTab] = useUS("prompts");
+  const session = window.PF_AUTH?.useSession?.() ?? { user: null };
+  const me = session.user;
+  const [tab, setTab] = useUS("bookmarks");
+  const [bookmarks, setBookmarks] = useUS([]);
+
+  // Load bookmarks when modal opens (if logged in).
+  useUE(() => {
+    let alive = true;
+    if (!me) return;
+    window.PF_API.myBookmarks().then((d) => { if (alive) setBookmarks(d.bookmarks || []); }).catch(() => {});
+    return () => { alive = false; };
+  }, [me?.id]);
+
+  // Live computed stats from session.
+  const points = me?.points ?? 0;
+  const lvl = me?.level ?? null;
+  const nxt = me?.next_level ?? null;
+  const progress = nxt
+    ? Math.min(100, Math.round(((points - (lvl?.min_points || 0)) / (nxt.min_points - (lvl?.min_points || 0))) * 100))
+    : 100;
 
   const stats = [
-    {n: "저장한 프롬프트", v: "47", c: "var(--ember)"},
-    {n: "참여 스터디", v: "2", c: "var(--violet)"},
-    {n: "이번주 커밋", v: "28", c: "var(--green)"},
+    { n: "현재 포인트",   v: points.toLocaleString(),                    c: "var(--ember)" },
+    { n: "레벨",          v: lvl ? `${lvl.icon} ${lvl.name}` : "—",     c: lvl ? `var(--${lvl.color})` : "var(--ink-2)" },
+    { n: "다음 레벨까지", v: nxt ? `${(nxt.min_points - points).toLocaleString()}P` : "최고 레벨", c: "var(--cyan)" },
+    { n: "찜한 글",       v: bookmarks.length.toString(),                c: "var(--violet)" },
   ];
 
-  const prompts = [
-    { name: "Roguelike Dungeon DM v3", note: "Claude · 4096 tok · 검증됨", tag: "PROMPT" },
-    { name: "한국어 RPG 마스터 페르소나", note: "GPT-4o · 톤 일관성 패턴", tag: "PROMPT" },
-    { name: "보스전 패턴 5종 (JSON spec)", note: "Cursor Composer 입력용", tag: "WORKFLOW" },
-  ];
   const myStudies = [
     { name: "Unity × LLM Agent 7기", note: "WEEK 0/8 · 다음 모임: 월 21:00", role: "참가자" },
     { name: "Claude Code 게임잼 클럽", note: "WEEK 4/12 · 매주 토요일", role: "운영자" },
   ];
 
   const tabs = [
-    {id: "prompts", label: "저장한 프롬프트", count: prompts.length},
-    {id: "studies", label: "참여 스터디", count: myStudies.length},
+    { id: "bookmarks", label: "찜한 글", count: bookmarks.length },
+    { id: "studies",   label: "참여 스터디", count: myStudies.length },
   ];
 
   return (
@@ -1019,15 +1068,36 @@ const ForgeModal = () => {
         저장해 둔 프롬프트와 참여 중인 스터디를 한 곳에서 관리하고, 여기서 새 글이나 스터디를 바로 시작하세요.
       </p>
 
-      {/* 통계 */}
-      <div style={{display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16}}>
+      {/* 통계 (4-column) */}
+      <div style={{display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 8, marginBottom: 12}}>
         {stats.map((s, i) => (
           <div key={i} style={{padding: "12px 14px", borderRadius: 10, border: "1px solid var(--line)", background: "rgba(20,26,46,0.4)"}}>
             <div style={{fontFamily: "JetBrains Mono, monospace", fontSize: 10.5, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase"}}>{s.n}</div>
-            <div style={{fontFamily: "Space Grotesk, sans-serif", fontSize: 22, fontWeight: 600, marginTop: 2, color: s.c}}>{s.v}</div>
+            <div style={{fontFamily: "Space Grotesk, sans-serif", fontSize: 18, fontWeight: 600, marginTop: 2, color: s.c, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{s.v}</div>
           </div>
         ))}
       </div>
+
+      {/* 레벨 진행도 */}
+      {lvl && (
+        <div style={{padding: "10px 14px", borderRadius: 10, border: "1px solid var(--line-strong)",
+                     background: `color-mix(in oklab, var(--${lvl.color}) 6%, transparent)`, marginBottom: 16}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:12,color:"var(--ink-2)",marginBottom:6,fontFamily:"JetBrains Mono, monospace"}}>
+            <span>{lvl.icon} {lvl.name}</span>
+            {nxt
+              ? <span>{points.toLocaleString()} / {nxt.min_points.toLocaleString()}P → {nxt.icon} {nxt.name}</span>
+              : <span>최고 레벨 도달!</span>}
+          </div>
+          <div style={{height:6,background:"rgba(255,255,255,0.06)",borderRadius:3,overflow:"hidden"}}>
+            <div style={{height:"100%",width:progress+"%",background:`var(--${lvl.color})`,transition:"width 700ms"}} />
+          </div>
+          {lvl.benefits && (
+            <div style={{fontSize:11.5,color:"var(--ink-2)",marginTop:8,lineHeight:1.5}}>
+              <b style={{color:`var(--${lvl.color})`}}>혜택:</b> {lvl.benefits}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 빠른 액션 */}
       <div style={{display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 18}}>
@@ -1061,15 +1131,36 @@ const ForgeModal = () => {
 
       {/* 탭 내용 */}
       <div style={{maxHeight: 240, overflowY: "auto"}}>
-        {tab === "prompts" && prompts.map((p, i) => (
-          <div key={i} onClick={() => toast(`'${p.name}' 프롬프트 열기`, "프롬프트")} style={{display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid var(--line)", cursor: "pointer"}}>
-            <div>
-              <div style={{fontSize: 14, fontWeight: 500, color: "var(--ink-0)"}}>{p.name}</div>
-              <div style={{fontSize: 12, color: "var(--ink-3)", marginTop: 2, fontFamily: "JetBrains Mono, monospace"}}>{p.note}</div>
+        {tab === "bookmarks" && (
+          bookmarks.length === 0 ? (
+            <div style={{padding: "24px 0", textAlign: "center", color: "var(--ink-3)", fontSize: 13}}>
+              아직 찜한 글이 없습니다. 마음에 드는 글에서 ★ 버튼을 눌러보세요.
             </div>
-            <span style={{fontSize: 10, color: "var(--cyan)", fontFamily: "JetBrains Mono, monospace", border: "1px solid rgba(60,227,255,0.25)", padding: "2px 6px", borderRadius: 4}}>{p.tag}</span>
-          </div>
-        ))}
+          ) : bookmarks.map((b, i) => (
+            <div key={b.post_id || i}
+                 onClick={async () => {
+                   try {
+                     const resp = await fetch(`https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/posts/${b.post_id}`, {
+                       headers: {
+                         apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+                         Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+                         'x-pf-token': window.PF_API._internal.getToken() || '',
+                       },
+                     });
+                     const data = await resp.json();
+                     if (data.post) { close(); window.dispatchEvent(new CustomEvent('pf:open-post', { detail: data.post })); }
+                   } catch (err) { toast("불러오기 실패", "오류"); }
+                 }}
+                 style={{display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid var(--line)", cursor: "pointer", gap: 10}}>
+              {b.image_url && <img src={b.image_url} alt="" style={{width:48,height:48,borderRadius:6,objectFit:"cover",border:"1px solid var(--line)",flexShrink:0}} />}
+              <div style={{flex: 1, minWidth: 0}}>
+                <div style={{fontSize: 14, fontWeight: 500, color: "var(--ink-0)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis"}}>{b.title}</div>
+                <div style={{fontSize: 12, color: "var(--ink-3)", marginTop: 2, fontFamily: "JetBrains Mono, monospace"}}>{b.tag} · #{b.board_slug}</div>
+              </div>
+              <span style={{fontSize: 14, color: "var(--ember)", flexShrink:0}}>★</span>
+            </div>
+          ))
+        )}
         {tab === "studies" && myStudies.map((s, i) => (
           <div key={i} onClick={() => toast(`'${s.name}' 스터디 페이지로 이동`, "스터디")} style={{display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: "1px solid var(--line)", cursor: "pointer"}}>
             <div>
