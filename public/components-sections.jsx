@@ -26,12 +26,7 @@ const PostsSection = () => {
       const res = await window.PF_API.posts(params);
       let list = res.posts ?? [];
       if (which === "verified") list = list.filter((p) => p.badge && p.badge.includes("검증"));
-      // Filter dark-only board posts in light mode
-      const theme = document.documentElement.getAttribute("data-theme") || "light";
-      const darkOnly = window.PF_THEME?.DARK_ONLY_BOARDS;
-      if (theme !== "dark" && darkOnly) {
-        list = list.filter((p) => !darkOnly.has(p.board_slug));
-      }
+      // Community feed is theme-agnostic — same posts in light and dark mode.
       list = list.slice(0, 20);
       setPosts(list);
       setCounts((c) => ({ ...c, [which]: list.length }));
@@ -45,12 +40,7 @@ const PostsSection = () => {
 
   useE2(() => { fetchTab(tab); }, [tab]);
 
-  // Re-fetch when the user toggles theme so dark-only posts show/hide.
-  useE2(() => {
-    const obs = new MutationObserver(() => fetchTab(tab));
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-    return () => obs.disconnect();
-  }, [tab]);
+  // Feed is theme-shared — no re-fetch needed when theme toggles.
 
   return (
     <div className="posts-block">
@@ -217,10 +207,35 @@ const Studies = () => {
   );
 };
 
+// Rail with maker/activity toggle (default = makers).
+const RAIL_COLORS = ["#ff8a3c", "#3ce3ff", "#ffd166", "#9a8cff", "#6ee7a0", "#ff5a1f", "#7defff"];
 const Rail = () => {
   const ui = window.PF_UI.useUI();
-  const ranking = window.PF_DATA.ranking;
+  const fallbackRanking = window.PF_DATA.ranking;
   const activity = window.PF_DATA.activity;
+  const [tab, setTab] = useS2(() => {
+    try { return localStorage.getItem("pf_rail_tab") || "makers"; } catch { return "makers"; }
+  });
+  const [makers, setMakers] = useS2(null);
+
+  useE2(() => {
+    let alive = true;
+    fetch("https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/top-makers", {
+      headers: {
+        apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+        Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+      },
+    }).then(r => r.json()).then((d) => {
+      if (alive && d?.makers?.length) setMakers(d.makers);
+    }).catch(() => { /* keep null */ });
+    return () => { alive = false; };
+  }, []);
+
+  const setRailTab = (t) => {
+    setTab(t);
+    try { localStorage.setItem("pf_rail_tab", t); } catch { /* */ }
+  };
+
   return (
     <aside className="rail">
       <div className="rail-card digest-card" id="digest">
@@ -232,35 +247,58 @@ const Rail = () => {
       </div>
 
       <div className="rail-card">
-        <h4>🏆 이주의 메이커 <a href="#" className="all" onClick={(e) => { e.preventDefault(); ui.toast("전체 랭킹으로 이동", "안내"); }}>랭킹 전체</a></h4>
-        <div className="rank-list">
-          {ranking.map((r, i) => (
-            <div key={i} className={"rank-row" + (i === 0 ? " top1" : i === 1 ? " top2" : i === 2 ? " top3" : "")} style={{cursor: "pointer"}} onClick={() => ui.toast(`@${r.name} 프로필 열기`, "프로필")}>
-              <div className="num">#{i + 1}</div>
-              <div className="av" style={{background: r.color}}>{r.name.slice(0, 2).toUpperCase()}</div>
-              <div className="who">
-                <div className="name">{r.name}</div>
-                <div className="role">{r.role}</div>
-              </div>
-              <div className="pts">+{r.pts}</div>
-            </div>
-          ))}
+        <div className="pf-rail-tabs">
+          <button className={"pf-rail-tab" + (tab === "makers" ? " active" : "")} onClick={() => setRailTab("makers")}>
+            🏆 이주의 메이커
+          </button>
+          <button className={"pf-rail-tab" + (tab === "activity" ? " active" : "")} onClick={() => setRailTab("activity")}>
+            ⚡ 최근 활동
+          </button>
         </div>
-      </div>
 
-      <div className="rail-card">
-        <h4>최근 활동 <span className="all">실시간</span></h4>
-        <div className="activity-list">
-          {activity.map((a, i) => (
-            <div key={i} className="activity-row" style={{cursor: "pointer"}} onClick={() => ui.toast(`@${a.who} · ${a.obj}`, "활동")}>
-              <div className="av" style={{background: a.color}}>{a.who.slice(0, 2).toUpperCase()}</div>
-              <div className="body">
-                <span className="name">@{a.who}</span> {a.action} <span className="obj">{a.obj}</span>{a.suffix || ""}
-                <span className="time">{a.time}</span>
+        {tab === "makers" ? (
+          <div className="rank-list" style={{marginTop: 12}}>
+            {(makers ?? fallbackRanking).map((m, i) => {
+              const isLive = !!makers;
+              const name = m.username || m.name;
+              const display = m.nickname || name;
+              const role = isLive ? (m.level?.name || "메이커") : m.role;
+              const pts = isLive ? m.points?.toLocaleString() : m.pts;
+              const color = isLive ? RAIL_COLORS[i % RAIL_COLORS.length] : m.color;
+              return (
+                <div key={i} className={"rank-row" + (i === 0 ? " top1" : i === 1 ? " top2" : i === 2 ? " top3" : "")}
+                     style={{cursor: "pointer"}}
+                     onClick={() => ui.toast(`@${name} · ${pts}P`, "메이커")}>
+                  <div className="num">#{i + 1}</div>
+                  <div className="av" style={{background: color}}>
+                    {(name || "").slice(0, 2).toUpperCase()}
+                  </div>
+                  <div className="who">
+                    <div className="name">
+                      {display}
+                      {isLive && m.level && <span style={{marginLeft:6,fontSize:11,color:`var(--${m.level.color})`}}>{m.level.icon}</span>}
+                    </div>
+                    <div className="role">{role}</div>
+                  </div>
+                  <div className="pts">+{pts}</div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="activity-list" style={{marginTop: 12}}>
+            {activity.map((a, i) => (
+              <div key={i} className="activity-row" style={{cursor: "pointer"}}
+                   onClick={() => ui.toast(`@${a.who} · ${a.obj}`, "활동")}>
+                <div className="av" style={{background: a.color}}>{a.who.slice(0, 2).toUpperCase()}</div>
+                <div className="body">
+                  <span className="name">@{a.who}</span> {a.action} <span className="obj">{a.obj}</span>{a.suffix || ""}
+                  <span className="time">{a.time}</span>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </aside>
   );

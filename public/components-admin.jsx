@@ -314,6 +314,7 @@ const PF_ADMIN = (() => {
     const tabs = [
       { id: "overview", label: "개요" },
       { id: "banners",  label: "공지 관리" },
+      { id: "levels",   label: "레벨 관리" },
       { id: "users",    label: "사용자" },
       { id: "content",  label: "콘텐츠" },
       { id: "engagement", label: "참여도" },
@@ -373,6 +374,7 @@ const PF_ADMIN = (() => {
         <div className="container admin-main">
           {tab === "overview" && <OverviewTab />}
           {tab === "banners" && <BannersTab />}
+          {tab === "levels" && <LevelsTab />}
           {tab === "users" && <UsersTab />}
           {tab === "content" && <ContentTab />}
           {tab === "engagement" && <EngagementTab />}
@@ -449,6 +451,138 @@ const PF_ADMIN = (() => {
   });
   const toLocalInput = (iso) => iso ? new Date(iso).toISOString().slice(0, 16) : "";
   const fromLocalInput = (s) => s ? new Date(s).toISOString() : null;
+
+  // ─────────── Levels Tab ───────────
+  const ALL_BOARDS = ["prompts","showcase","workflow","qna","design","art-sound","release","lounge","illust","cosplay"];
+  const LevelsTab = () => {
+    const ui = window.PF_UI.useUI();
+    const [levels, setLevels] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [busy, setBusy] = useState(null);
+
+    const load = () => {
+      setLoading(true);
+      window.PF_API.admin.levels()
+        .then((d) => setLevels(d.levels || []))
+        .catch(() => ui.toast("레벨 로드 실패", "오류"))
+        .finally(() => setLoading(false));
+    };
+    useEffect(load, []);
+
+    const update = (idx, patch) => {
+      setLevels((prev) => prev.map((l, i) => i === idx ? { ...l, ...patch } : l));
+    };
+    const updatePerm = (idx, key, val) => {
+      setLevels((prev) => prev.map((l, i) => {
+        if (i !== idx) return l;
+        return { ...l, perms: { ...(l.perms || {}), [key]: val } };
+      }));
+    };
+    const toggleBlocked = (idx, slug) => {
+      setLevels((prev) => prev.map((l, i) => {
+        if (i !== idx) return l;
+        const cur = (l.perms?.boards_blocked || []);
+        const next = cur.includes(slug) ? cur.filter((s) => s !== slug) : [...cur, slug];
+        return { ...l, perms: { ...(l.perms || {}), boards_blocked: next } };
+      }));
+    };
+    const save = async (lvl) => {
+      setBusy(lvl.id);
+      try {
+        await window.PF_API.admin.updateLevel(lvl.id, {
+          name: lvl.name,
+          min_points: Number(lvl.min_points),
+          color: lvl.color,
+          icon: lvl.icon,
+          perms: lvl.perms,
+          benefits: lvl.benefits,
+        });
+        ui.toast(`'${lvl.name}' 저장됨`, "레벨");
+      } catch (err) {
+        ui.toast("저장 실패: " + (err.message || ""), "오류");
+      } finally { setBusy(null); }
+    };
+
+    return (
+      <div>
+        <div style={{marginBottom: 16}}>
+          <div className="kicker">// levels — 5단계 회원 등급</div>
+          <h2 style={{margin: "4px 0 0"}}>레벨 관리</h2>
+          <div style={{fontSize: 13, color: "var(--ink-2)", marginTop: 6}}>
+            관리자 외 모든 사용자는 5개 등급 중 하나입니다. 포인트 기준선, 권한, 혜택을 편집할 수 있습니다.
+            <span style={{color:"var(--ink-3)",marginLeft:8}}>· 글쓰기 +10P · 댓글 +3P · 추천 보내면 +1P, 받으면 +2P</span>
+          </div>
+        </div>
+
+        {loading ? (
+          <div style={{padding: 32, textAlign: "center", color: "var(--ink-3)"}}>불러오는 중…</div>
+        ) : (
+          <div className="pf-levels-grid">
+            {levels.map((lvl, i) => (
+              <div key={lvl.id} className="pf-level-card">
+                <div className="pf-level-icon" style={{color: `var(--${lvl.color})`}}>
+                  {lvl.icon}
+                </div>
+                <div className="pf-level-meta">
+                  <input value={lvl.name} onChange={e => update(i, { name: e.target.value })} placeholder="레벨명" />
+                  <div style={{display:"flex",gap:8}}>
+                    <input type="number" value={lvl.min_points} onChange={e => update(i, { min_points: e.target.value })} placeholder="필요 포인트" style={{flex:1}} />
+                    <select value={lvl.color} onChange={e => update(i, { color: e.target.value })}
+                            style={{padding:"8px 10px",background:"rgba(11,14,26,0.6)",border:"1px solid var(--line)",borderRadius:6,color:"var(--ink-0)",fontSize:12}}>
+                      <option value="cyan">cyan</option>
+                      <option value="ember">ember</option>
+                      <option value="violet">violet</option>
+                      <option value="green">green</option>
+                      <option value="spark">spark</option>
+                    </select>
+                    <input value={lvl.icon} onChange={e => update(i, { icon: e.target.value })} placeholder="아이콘" style={{width:60,textAlign:"center"}} />
+                  </div>
+                  <textarea value={lvl.benefits || ""} onChange={e => update(i, { benefits: e.target.value })} placeholder="혜택 설명 (사용자에게 노출)" />
+                </div>
+                <div className="pf-level-perms">
+                  <div style={{fontWeight:600,color:"var(--ink-1)",marginBottom:6,fontSize:11.5,textTransform:"uppercase",letterSpacing:"0.06em"}}>권한</div>
+                  <label><input type="checkbox" checked={lvl.perms?.can_post !== false} onChange={e => updatePerm(i, "can_post", e.target.checked)} /> 글쓰기 가능</label>
+                  <label><input type="checkbox" checked={lvl.perms?.can_comment !== false} onChange={e => updatePerm(i, "can_comment", e.target.checked)} /> 댓글 가능</label>
+                  <label><input type="checkbox" checked={lvl.perms?.can_create_study === true} onChange={e => updatePerm(i, "can_create_study", e.target.checked)} /> 스터디 생성</label>
+                  <label><input type="checkbox" checked={lvl.perms?.can_pin_post === true} onChange={e => updatePerm(i, "can_pin_post", e.target.checked)} /> 글 고정</label>
+                  <label><input type="checkbox" checked={lvl.perms?.can_moderate === true} onChange={e => updatePerm(i, "can_moderate", e.target.checked)} /> 모더레이션</label>
+                  <div style={{fontWeight:600,color:"var(--ink-1)",marginTop:8,marginBottom:6,fontSize:11.5,textTransform:"uppercase",letterSpacing:"0.06em"}}>차단 보드</div>
+                  <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
+                    {ALL_BOARDS.map((slug) => {
+                      const blocked = (lvl.perms?.boards_blocked || []).includes(slug);
+                      return (
+                        <button key={slug} type="button" onClick={() => toggleBlocked(i, slug)}
+                                style={{
+                                  padding:"3px 8px",borderRadius:4,fontSize:11,
+                                  background: blocked ? "rgba(255,90,31,0.15)" : "transparent",
+                                  border: "1px solid " + (blocked ? "rgba(255,90,31,0.4)" : "var(--line)"),
+                                  color: blocked ? "var(--ember)" : "var(--ink-2)",
+                                  fontFamily:"JetBrains Mono, monospace",cursor:"pointer",
+                                }}>
+                          {blocked ? "🚫 " : ""}{slug}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{marginTop:8,fontSize:11,color:"var(--ink-3)"}}>
+                    일일 글쓰기 한도: <input type="number" value={lvl.perms?.daily_post_quota ?? 999} onChange={e => updatePerm(i, "daily_post_quota", Number(e.target.value))}
+                                              style={{width:60,padding:"2px 6px",background:"rgba(11,14,26,0.6)",border:"1px solid var(--line)",borderRadius:4,color:"var(--ink-0)",marginLeft:4,fontSize:11}} />
+                  </div>
+                </div>
+                <div className="pf-level-actions">
+                  <button className="btn btn-primary" disabled={busy === lvl.id} onClick={() => save(lvl)}
+                          style={{padding:"8px 12px",fontSize:12}}>
+                    {busy === lvl.id ? "저장 중…" : "저장"}
+                  </button>
+                  <button className="btn btn-ghost" onClick={load} style={{padding:"8px 12px",fontSize:12}}>되돌리기</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const BannersTab = () => {
     const ui = window.PF_UI.useUI();

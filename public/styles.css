@@ -2356,3 +2356,112 @@ footer {
 :root[data-theme="light"] .pf-popup h2 { color: var(--ink-0); }
 :root[data-theme="light"] .pf-popup-x { color: var(--ink-2); }
 :root[data-theme="light"] .eyebrow .dot { background: var(--ember-deep); }
+
+/* ── Rail tabs (이주의 메이커 / 최근 활동) ─────────────────────────── */
+.pf-rail-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  margin: 0 -2px;
+}
+.pf-rail-tab {
+  flex: 1;
+  padding: 8px 10px;
+  background: transparent;
+  border: none;
+  color: var(--ink-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 140ms, border-color 140ms;
+}
+.pf-rail-tab:hover { color: var(--ink-0); }
+.pf-rail-tab.active { color: var(--cyan); border-bottom-color: var(--cyan); }
+:root[data-theme="light"] .pf-rail-tab { color: var(--ink-2); }
+:root[data-theme="light"] .pf-rail-tab.active { color: var(--cyan-deep); border-bottom-color: var(--cyan-deep); }
+
+/* ── Admin levels editor ──────────────────────────────────────────── */
+.pf-levels-grid {
+  display: grid;
+  gap: 14px;
+}
+.pf-level-card {
+  display: grid;
+  grid-template-columns: 80px 1fr 200px 100px;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(20, 26, 46, 0.3);
+  align-items: start;
+}
+.pf-level-icon {
+  font-size: 28px;
+  text-align: center;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(60, 227, 255, 0.06);
+}
+.pf-level-meta input,
+.pf-level-meta textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: rgba(11, 14, 26, 0.6);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--ink-0);
+  font-family: inherit;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+.pf-level-meta textarea { resize: vertical; min-height: 50px; }
+.pf-level-perms {
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.pf-level-perms label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+.pf-level-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+:root[data-theme="light"] .pf-level-card {
+  background: #ffffff;
+  border-color: var(--line);
+}
+:root[data-theme="light"] .pf-level-icon { background: rgba(60, 227, 255, 0.08); }
+:root[data-theme="light"] .pf-level-meta input,
+:root[data-theme="light"] .pf-level-meta textarea {
+  background: #ffffff;
+  color: var(--ink-0);
+}
+@media (max-width: 720px) {
+  .pf-level-card {
+    grid-template-columns: 60px 1fr;
+    grid-template-rows: auto auto auto;
+  }
+  .pf-level-perms, .pf-level-actions { grid-column: 1 / -1; }
+}
+
+/* ── Level badge (inline next to user names) ──────────────────────── */
+.pf-level-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  margin-left: 5px;
+  vertical-align: middle;
+  border: 1px solid currentColor;
+}
