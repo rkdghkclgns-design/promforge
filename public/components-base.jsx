@@ -98,16 +98,19 @@ const Nav = () => {
             <input placeholder="프롬프트, 게임, 멤버 검색…" value={searchVal} readOnly />
             <span className="search-key">⌘K</span>
           </div>
-          <a className="btn btn-discord" href={ui.discordUrl} target="_blank" rel="noopener noreferrer">
+          <button className="search-mobile" type="button" onClick={() => ui.open("search")} aria-label="검색">
+            <Icon name="search" className="icn" />
+          </button>
+          <a className="btn btn-discord" href={ui.discordUrl} target="_blank" rel="noopener noreferrer" aria-label="Discord">
             <Icon name="discord" className="icn" />
-            Discord
+            <span className="btn-discord-text">Discord</span>
           </a>
           {ThemeToggle && <ThemeToggle />}
           {!session.ready ? (
             <span style={{ color: "var(--ink-3)", fontSize: 12 }}>…</span>
           ) : session.user ? (
             <>
-              <span className="mono hide-sm" style={{ fontSize: 12, color: "var(--cyan)" }}>
+              <span className="mono nav-user-badge" style={{ fontSize: 12, color: "var(--cyan)" }}>
                 @{session.user.username}{session.user.role === "admin" ? " · ADMIN" : ""}
               </span>
               <button className="btn btn-ghost" onClick={onLogout}>로그아웃</button>
@@ -117,7 +120,7 @@ const Nav = () => {
               <button className="btn btn-ghost hide-sm" onClick={() => ui.open("login")}>로그인</button>
               <button className="btn btn-primary" onClick={() => ui.open("signup")}>
                 <Icon name="flame" className="icn" />
-                포지 가입
+                <span className="btn-primary-text">포지 가입</span>
               </button>
             </>
           )}
