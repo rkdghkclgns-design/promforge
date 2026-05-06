@@ -210,6 +210,8 @@ const SLUG_TO_VISUAL = {
   "art-sound": { color: "ember", glyph: "palette" },
   release:   { color: "violet", glyph: "send"    },
   lounge:    { color: "green",  glyph: "chat"    },
+  illust:    { color: "ember",  glyph: "palette" },
+  cosplay:   { color: "violet", glyph: "spark"   },
 };
 
 const Boards = () => {

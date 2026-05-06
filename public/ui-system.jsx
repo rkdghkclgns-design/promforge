@@ -415,6 +415,8 @@ const BOARD_OPTIONS = [
   { slug: "art-sound", title: "AI 아트 & 사운드" },
   { slug: "release", title: "출시 & 마케팅" },
   { slug: "lounge", title: "자유게시판" },
+  { slug: "illust", title: "일러스트 / 팬아트" },
+  { slug: "cosplay", title: "코스프레" },
 ];
 
 const NewPostModal = () => {
