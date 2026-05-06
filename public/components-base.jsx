@@ -62,10 +62,31 @@ const Nav = () => {
 
   const onLink = (id, e) => {
     e.preventDefault();
+    // Modal links — open the modal and stop.
     if (id === "forge") { ui.open("forge"); return; }
     if (id === "digest") { ui.open("subscribe"); return; }
+    // True page changes — switch route (which intentionally scrolls to top).
     if (id === "admin") { ui.setRoute("admin"); return; }
-    ui.setRoute(id);
+
+    // In-page anchor links (home / board / showcase / studies).
+    // If we are on a sub-page (admin or board:slug), go home FIRST and then
+    // scroll once the home view has rendered. Otherwise just scroll — do NOT
+    // call setRoute, because setRoute force-scrolls to top and races against
+    // the in-page scrollIntoView (this was the "always jumps to top" bug).
+    const onHome = !ui.route || ui.route === "home";
+    if (!onHome) {
+      ui.setRoute("home");
+      setTimeout(() => {
+        if (id === "home") return; // setRoute already put us at the top
+        const t = document.getElementById(id);
+        if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+      return;
+    }
+    if (id === "home") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     const target = document.getElementById(id);
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
   };

@@ -317,10 +317,18 @@ const CTABanner = () => {
 const Footer = () => {
   const ui = window.PF_UI.useUI();
   const open = (kind, payload) => (e) => { e.preventDefault(); ui.open(kind, payload); };
+  // Goes to a section anchor on the home page. If the user is on a sub-route
+  // (admin / board:slug), we have to switch routes first and then scroll
+  // after the home view renders (otherwise getElementById returns null).
   const goTo = (id) => (e) => {
     e.preventDefault();
-    if (ui.route === "admin") ui.setRoute("home");
-    setTimeout(() => document.getElementById(id)?.scrollIntoView({behavior:"smooth"}), 60);
+    const onHome = !ui.route || ui.route === "home";
+    if (!onHome) {
+      ui.setRoute("home");
+      setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 80);
+      return;
+    }
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth" });
   };
   return (
     <footer>
