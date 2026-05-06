@@ -1,10 +1,11 @@
 /* PromForge — banners.
-   - HeroBannerSlots: replaces the hero side cards with two rotating banner slots.
-   - PopupBanner: full-screen modal once per session per banner.
-   Both are admin-controlled via /admin/banners CRUD; data via /banners.
+   - HeroBannerSlots: two side cards in the hero, never showing the same banner.
+     Rotation is shared so slot A = idx, slot B = idx+1, always offset by 1.
+     Users can pause/resume and step prev/next manually.
+   - PopupBanner: full-screen modal, shown once per session per banner.
 */
 (function () {
-  const { useState, useEffect } = React;
+  const { useState, useEffect, useRef } = React;
   const useUI = () => window.PF_UI.useUI();
 
   const accentVar = (a) => ({
@@ -33,45 +34,35 @@
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // Hero banner slot — single card cycling through banners.
-  const HeroSlot = ({ position, banners, offset = 0 }) => {
+  // Single hero slot — shows whichever banner the parent assigns.
+  // Includes per-slot dot indicators that reflect the parent's currentIdx + offset.
+  const HeroSlot = ({ position, banner, total, dotIndex }) => {
     const ui = useUI();
-    const [idx, setIdx] = useState(0);
-    const [paused, setPaused] = useState(false);
-
-    useEffect(() => {
-      if (banners.length < 2 || paused) return;
-      const t = setInterval(() => setIdx((i) => (i + 1) % banners.length), 6000 + offset * 800);
-      return () => clearInterval(t);
-    }, [banners.length, paused, offset]);
-
-    if (!banners.length) return null;
-    const b = banners[(idx + offset) % banners.length];
-    const accent = accentVar(b.accent);
+    if (!banner) return null;
+    const accent = accentVar(banner.accent);
 
     return (
       <div className={`hero-side-card pf-hero-banner ${position}`}
-           onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
-           onClick={() => openLink(ui, b.link_url)}
-           style={{ borderLeft: `2px solid ${accent}`, cursor: b.link_url ? "pointer" : "default" }}>
+           onClick={() => openLink(ui, banner.link_url)}
+           style={{ borderLeft: `2px solid ${accent}`, cursor: banner.link_url ? "pointer" : "default" }}>
         <div className="pf-hero-meta">
           <span className="dot" style={{ background: accent }} />
           <span className="mono" style={{ color: accent, fontSize: 11, letterSpacing: "0.1em" }}>
-            {b.subtitle || "WEEKLY FORGE"}
+            {banner.subtitle || "PROMFORGE"}
           </span>
         </div>
-        <div className="pf-hero-title">{b.title}</div>
-        {b.body && <div className="pf-hero-body">{b.body}</div>}
-        {b.link_url && (
+        <div className="pf-hero-title">{banner.title}</div>
+        {banner.body && <div className="pf-hero-body">{banner.body}</div>}
+        {banner.link_url && (
           <div className="pf-hero-cta" style={{ color: accent }}>
-            {b.link_label || "자세히 보기"} →
+            {banner.link_label || "자세히 보기"} →
           </div>
         )}
-        {banners.length > 1 && (
+        {total > 1 && (
           <div className="pf-hero-dots">
-            {banners.map((_, i) => (
-              <span key={i} className={"pf-hero-dot" + (i === (idx + offset) % banners.length ? " active" : "")}
-                    style={{ background: i === (idx + offset) % banners.length ? accent : undefined }} />
+            {Array.from({ length: total }).map((_, i) => (
+              <span key={i} className={"pf-hero-dot" + (i === dotIndex ? " active" : "")}
+                    style={{ background: i === dotIndex ? accent : undefined }} />
             ))}
           </div>
         )}
@@ -81,40 +72,82 @@
 
   const HeroBannerSlots = () => {
     const [banners, setBanners] = useState([]);
+    const [idx, setIdx] = useState(0);              // top slot index
+    const [paused, setPaused] = useState(false);    // hover pause
+    const [manualUntil, setManualUntil] = useState(0); // pause until ts after manual click
+    const containerRef = useRef(null);
+
     useEffect(() => {
       window.PF_API.banners("rolling")
         .then((res) => setBanners(res.banners || []))
         .catch(() => {});
     }, []);
 
-    // No banners → keep the design with two static fallback cards so the
-    // layout never collapses.
+    // Auto-advance: rotates the top index. Bottom slot is always (idx + 1) so
+    // the two slots never collide when there are 2+ banners.
+    useEffect(() => {
+      if (banners.length < 2) return;
+      const t = setInterval(() => {
+        if (paused) return;
+        if (Date.now() < manualUntil) return;
+        setIdx((i) => (i + 1) % banners.length);
+      }, 6000);
+      return () => clearInterval(t);
+    }, [banners.length, paused, manualUntil]);
+
+    const step = (delta) => {
+      if (!banners.length) return;
+      setManualUntil(Date.now() + 12000); // pause auto-advance for 12s after manual interaction
+      setIdx((i) => (i + delta + banners.length) % banners.length);
+    };
+
     if (!banners.length) {
+      // Friendly fallback when no rolling banners are configured.
       return (
         <>
           <div className="hero-side-card hsc-2">
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
               <span className="mono" style={{ color: "var(--cyan)", fontSize: 11, letterSpacing: "0.1em" }}>WEEKLY FORGE</span>
-              <span className="mono" style={{ color: "var(--ink-3)", fontSize: 11 }}>WK 18</span>
+              <span className="mono" style={{ color: "var(--ink-3)", fontSize: 11 }}>—</span>
             </div>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>이주의 픽: 안개의 도서관</div>
-            <div style={{ fontSize: 11.5, color: "var(--ink-2)", lineHeight: 1.5 }}>관리자 페이지에서 공지를 추가하면 이 영역이 롤링됩니다.</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>롤링 배너 영역</div>
+            <div style={{ fontSize: 11.5, color: "var(--ink-2)", lineHeight: 1.5 }}>관리자 → 공지 관리에서 등록하면 이 영역이 회전합니다.</div>
           </div>
           <div className="hero-side-card hsc-1">
             <div className="mono" style={{ color: "var(--ember)", fontSize: 10.5, letterSpacing: "0.12em", marginBottom: 8 }}>● 안내</div>
-            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>롤링 배너 영역</div>
-            <div style={{ fontSize: 11.5, color: "var(--ink-2)" }}>/admin → 공지 관리에서 등록하세요.</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>두 번째 슬롯</div>
+            <div style={{ fontSize: 11.5, color: "var(--ink-2)" }}>두 슬롯은 서로 다른 공지를 동시 표시합니다.</div>
           </div>
         </>
       );
     }
 
-    // With 1 banner → only show top slot. With 2+ → both slots cycling.
+    const topBanner = banners[idx];
+    const bottomIdx = banners.length > 1 ? (idx + 1) % banners.length : null;
+    const bottomBanner = bottomIdx != null ? banners[bottomIdx] : null;
+
     return (
-      <>
-        <HeroSlot position="hsc-2" banners={banners} offset={0} />
-        {banners.length > 1 && <HeroSlot position="hsc-1" banners={banners} offset={1} />}
-      </>
+      <div ref={containerRef} className="pf-hero-banner-group"
+           onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+        <HeroSlot position="hsc-2" banner={topBanner} total={banners.length} dotIndex={idx} />
+        {bottomBanner && <HeroSlot position="hsc-1" banner={bottomBanner} total={banners.length} dotIndex={bottomIdx} />}
+        {banners.length > 1 && (
+          <div className="pf-hero-controls">
+            <button className="pf-hero-ctrl" onClick={(e) => { e.stopPropagation(); step(-1); }}
+                    title="이전 배너" aria-label="이전">‹</button>
+            <button className="pf-hero-ctrl" onClick={(e) => { e.stopPropagation(); setManualUntil(Date.now() + 12000); setPaused((p) => !p); }}
+                    title={paused ? "자동 회전 재개" : "자동 회전 정지"} aria-label="재생/정지">
+              {paused ? "▶" : "❚❚"}
+            </button>
+            <button className="pf-hero-ctrl" onClick={(e) => { e.stopPropagation(); step(1); }}
+                    title="다음 배너" aria-label="다음">›</button>
+            <span className="pf-hero-counter">
+              <span className="mono">{idx + 1}–{Math.min(idx + 2, banners.length) || idx + 1}</span>
+              <span style={{ color: "var(--ink-3)" }}>/{banners.length}</span>
+            </span>
+          </div>
+        )}
+      </div>
     );
   };
 

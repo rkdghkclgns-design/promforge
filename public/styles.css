@@ -1718,3 +1718,50 @@ footer {
 .showcase-card .showcase-img + .info {
   border-top: 1px solid var(--line);
 }
+
+/* —— Hero banner manual controls —— */
+.pf-hero-banner-group {
+  display: contents; /* keep existing absolute-positioned hsc-1/hsc-2 layout */
+}
+.pf-hero-controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(7, 9, 15, 0.7);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px;
+  backdrop-filter: blur(6px);
+  z-index: 4;
+}
+.pf-hero-ctrl {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--ink-1);
+  cursor: pointer;
+  font-size: 14px;
+  font-family: "JetBrains Mono", monospace;
+  display: grid;
+  place-items: center;
+  transition: background 140ms;
+}
+.pf-hero-ctrl:hover {
+  background: rgba(60, 227, 255, 0.12);
+  color: var(--cyan);
+}
+.pf-hero-counter {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10.5px;
+  color: var(--ink-1);
+  padding: 0 6px;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 920px) {
+  .pf-hero-controls { display: none; }
+}
