@@ -218,6 +218,7 @@ const Boards = () => {
   const ui = window.PF_UI.useUI();
   const [boards, setBoards] = useState(window.PF_DATA.boards);
   const [loading, setLoading] = useState(true);
+  const [theme] = window.PF_THEME?.useTheme?.() ?? ["light", () => {}, () => {}];
 
   useEffect(() => {
     let alive = true;
@@ -240,6 +241,11 @@ const Boards = () => {
     return () => { alive = false; };
   }, []);
 
+  // Hide dark-only boards (illust/cosplay/showcase) in light mode.
+  const visibleBoards = window.PF_THEME?.filterBoards
+    ? window.PF_THEME.filterBoards(boards, theme)
+    : boards;
+
   return (
     <section className="section" id="board">
       <div className="container">
@@ -247,14 +253,21 @@ const Boards = () => {
           <div className="left">
             <div className="kicker">// boards</div>
             <h2>카테고리별 게시판</h2>
-            <div className="sub">{boards.length}개 보드 · 라이브 데이터.</div>
+            <div className="sub">
+              {visibleBoards.length}개 보드 · 라이브 데이터
+              {theme === "light" && boards.length !== visibleBoards.length && (
+                <span style={{marginLeft:8,color:"var(--ink-3)",fontSize:12}}>
+                  (다크 모드 전용 {boards.length - visibleBoards.length}개 숨김)
+                </span>
+              )}
+            </div>
           </div>
           <div className="right">
-            <button className="btn btn-ghost" onClick={() => { document.getElementById("board")?.scrollIntoView({behavior:"smooth"}); ui.toast(`현재 ${boards.length}개 보드 모두 표시 중`, "안내"); }}>전체보기 <Icon name="arrow" className="icn" /></button>
+            <button className="btn btn-ghost" onClick={() => { document.getElementById("board")?.scrollIntoView({behavior:"smooth"}); ui.toast(`현재 ${visibleBoards.length}개 보드 표시 중`, "안내"); }}>전체보기 <Icon name="arrow" className="icn" /></button>
           </div>
         </div>
         <div className="boards-grid">
-          {boards.map(b => (
+          {visibleBoards.map(b => (
             <div key={b.slug || b.id} className={"board-card " + b.color}
                  onClick={() => ui.setRoute("board:" + (b.slug || b.id))}
                  style={{position:"relative"}}>
@@ -289,6 +302,26 @@ const BoardDetailPage = ({ slug }) => {
   const [tab, setTab] = useState("hot");
   const [loading, setLoading] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
+  const [theme, setTheme] = (window.PF_THEME?.useTheme?.() ?? ["light", () => {}, () => {}]).slice(0, 2);
+
+  // If user lands on a dark-only board in light mode, prompt to switch.
+  const isDarkOnly = window.PF_THEME?.isDarkOnly?.(slug);
+  if (isDarkOnly && theme === "light") {
+    return (
+      <div className="container" style={{padding:"80px 28px",textAlign:"center",maxWidth:560,margin:"0 auto"}}>
+        <div className="kicker" style={{justifyContent:"center"}}>// 다크 모드 전용</div>
+        <h2 style={{margin:"12px 0"}}>이 게시판은 다크 모드에서만 노출됩니다</h2>
+        <p style={{color:"var(--ink-2)",fontSize:14,marginBottom:24,lineHeight:1.6}}>
+          쇼케이스 / 일러스트 / 코스프레는 분위기에 어울리는 다크 모드에서 표시됩니다.<br/>
+          우상단 ☾ 버튼으로 전환하거나 아래 버튼으로 바로 전환할 수 있습니다.
+        </p>
+        <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+          <button className="btn btn-ghost" onClick={() => ui.setRoute("home")}>홈으로</button>
+          <button className="btn btn-primary" onClick={() => { window.PF_THEME.setTheme("dark"); }}>다크 모드로 전환</button>
+        </div>
+      </div>
+    );
+  }
 
   // search + pagination
   const [page, setPage] = useState(1);          // 1-based

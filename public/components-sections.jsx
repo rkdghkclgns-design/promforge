@@ -22,14 +22,20 @@ const PostsSection = () => {
         ? { tab: "hot", limit: 30 }
         : which === "release"
           ? { tab: "latest", board: "release", limit: 30 }
-          : { tab: which, limit: 20 };
+          : { tab: which, limit: 30 };
       const res = await window.PF_API.posts(params);
       let list = res.posts ?? [];
       if (which === "verified") list = list.filter((p) => p.badge && p.badge.includes("검증"));
+      // Filter dark-only board posts in light mode
+      const theme = document.documentElement.getAttribute("data-theme") || "light";
+      const darkOnly = window.PF_THEME?.DARK_ONLY_BOARDS;
+      if (theme !== "dark" && darkOnly) {
+        list = list.filter((p) => !darkOnly.has(p.board_slug));
+      }
+      list = list.slice(0, 20);
       setPosts(list);
       setCounts((c) => ({ ...c, [which]: list.length }));
     } catch {
-      // Fallback to mock if API unreachable
       const m = window.PF_DATA.posts;
       setPosts(m[which] || m.hot);
     } finally {
@@ -38,6 +44,13 @@ const PostsSection = () => {
   };
 
   useE2(() => { fetchTab(tab); }, [tab]);
+
+  // Re-fetch when the user toggles theme so dark-only posts show/hide.
+  useE2(() => {
+    const obs = new MutationObserver(() => fetchTab(tab));
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => obs.disconnect();
+  }, [tab]);
 
   return (
     <div className="posts-block">
@@ -85,6 +98,9 @@ const PostsSection = () => {
 const Showcase = () => {
   const ui = window.PF_UI.useUI();
   const [items, setItems] = useS2(window.PF_DATA.showcases);
+  const [theme] = window.PF_THEME?.useTheme?.() ?? ["light"];
+  // Hide entire showcase section in light mode
+  if (theme !== "dark") return null;
   useE2(() => {
     let alive = true;
     window.PF_API.showcases().then((res) => {

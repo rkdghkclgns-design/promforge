@@ -18,10 +18,18 @@
 <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
+<script>
+  // Apply persisted theme before React paints to avoid FOUC.
+  try {
+    var t = localStorage.getItem('pf_theme');
+    document.documentElement.setAttribute('data-theme', (t === 'dark' || t === 'light') ? t : 'light');
+  } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+</script>
 <script src="js/api.js"></script>
 <script src="data.js"></script>
 <script type="text/babel" src="tweaks-panel.jsx"></script>
 <script type="text/babel" src="ui-system.jsx"></script>
+<script type="text/babel" src="js/theme.jsx"></script>
 <script type="text/babel" src="js/auth-override.jsx"></script>
 <script type="text/babel" src="js/banners.jsx"></script>
 <script type="text/babel" src="js/markdown.jsx"></script>
@@ -47,11 +55,12 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "showTicker": true
 }/*EDITMODE-END*/;
 
-// Decorate the original Nav with the live session badge in the right slot.
+// Decorate the original Nav with the live session badge + theme toggle.
 const NavWithSession = () => (
   <div style={{ position: 'relative' }}>
     <Nav />
-    <div style={{ position: 'absolute', right: 28, top: 14, zIndex: 5 }}>
+    <div style={{ position: 'absolute', right: 28, top: 14, zIndex: 5, display: 'flex', alignItems: 'center', gap: 8 }}>
+      {window.PF_THEME?.ThemeToggle && <window.PF_THEME.ThemeToggle />}
       <NavSession />
     </div>
   </div>

@@ -543,7 +543,14 @@ const NewPostModal = () => {
       <label className="field"><label>보드</label>
         <select value={form.boardSlug} onChange={e => setForm({...form, boardSlug: e.target.value})}
                 style={{width:'100%',padding:'10px 12px',background:'rgba(20,26,46,0.5)',border:'1px solid var(--line)',borderRadius:8,color:'var(--ink-0)',fontFamily:'inherit',fontSize:14}}>
-          {BOARD_OPTIONS.map((b) => <option key={b.slug} value={b.slug}>{b.title}</option>)}
+          {BOARD_OPTIONS
+            .filter((b) => {
+              // Hide dark-only boards in light mode
+              const theme = document.documentElement.getAttribute('data-theme') || 'light';
+              const darkOnly = window.PF_THEME?.DARK_ONLY_BOARDS;
+              return !(darkOnly && darkOnly.has(b.slug) && theme !== 'dark');
+            })
+            .map((b) => <option key={b.slug} value={b.slug}>{b.title}</option>)}
         </select>
       </label>
       <label className="field"><label>태그</label><input value={form.tag} onChange={e => setForm({...form, tag: e.target.value.toUpperCase()})} placeholder="PROMPT / SHOWCASE / WORKFLOW …" /></label>

@@ -1765,3 +1765,127 @@ footer {
 @media (max-width: 920px) {
   .pf-hero-controls { display: none; }
 }
+
+/* —— Light theme overrides ——
+   Defaults are dark; when [data-theme="light"] is set on <html> we flip
+   the foundational tokens. All gradients/borders/cards inherit through
+   var(--…) so most components recolor automatically. */
+:root[data-theme="light"] {
+  --bg-0: #f6f7fb;
+  --bg-1: #eef0f7;
+  --bg-2: #ffffff;
+  --bg-3: #f0f3f8;
+  --line: rgba(20, 30, 60, 0.10);
+  --line-strong: rgba(20, 30, 60, 0.18);
+  --ink-0: #0e1424;
+  --ink-1: #2a3148;
+  --ink-2: #5b6786;
+  --ink-3: #8a96b3;
+  --cyan-deep: #0e6f8f;
+  --ember-deep: #d54a17;
+}
+:root[data-theme="light"] body { background: var(--bg-0); }
+:root[data-theme="light"] .page-bg { opacity: 0.35; }
+:root[data-theme="light"] .nav { background: rgba(255, 255, 255, 0.85); border-bottom: 1px solid var(--line); }
+:root[data-theme="light"] .ticker { background: rgba(255, 255, 255, 0.7); border-color: var(--line); }
+:root[data-theme="light"] .board-card,
+:root[data-theme="light"] .study-card,
+:root[data-theme="light"] .showcase-card,
+:root[data-theme="light"] .post-row,
+:root[data-theme="light"] .rail-card,
+:root[data-theme="light"] .hero-side-card,
+:root[data-theme="light"] .modal,
+:root[data-theme="light"] .pf-rolling-card,
+:root[data-theme="light"] .pf-popup,
+:root[data-theme="light"] .pf-comment,
+:root[data-theme="light"] .admin-kpi {
+  background: #ffffff;
+  border-color: var(--line);
+  box-shadow: 0 1px 2px rgba(20, 30, 60, 0.04), 0 6px 18px rgba(20, 30, 60, 0.05);
+}
+:root[data-theme="light"] .forge-card,
+:root[data-theme="light"] .fc-body,
+:root[data-theme="light"] .md-pre,
+:root[data-theme="light"] pre.code {
+  background: #0e1424;
+  color: #c8d2e8;
+  border-color: rgba(20, 30, 60, 0.18);
+}
+:root[data-theme="light"] .md-inline-code {
+  background: rgba(60, 227, 255, 0.12);
+  color: var(--cyan-deep);
+}
+:root[data-theme="light"] .md-link {
+  color: var(--cyan-deep);
+}
+:root[data-theme="light"] .btn-primary {
+  background: var(--ember);
+  color: #fff;
+}
+:root[data-theme="light"] .btn-ghost {
+  background: rgba(20, 30, 60, 0.04);
+  border: 1px solid var(--line);
+  color: var(--ink-1);
+}
+:root[data-theme="light"] .btn-ghost:hover {
+  background: rgba(20, 30, 60, 0.08);
+}
+:root[data-theme="light"] .btn-discord {
+  background: #5865f2;
+  color: #fff;
+}
+:root[data-theme="light"] .search {
+  background: #ffffff;
+  border-color: var(--line);
+}
+:root[data-theme="light"] .search input { color: var(--ink-0); }
+:root[data-theme="light"] .pf-pg {
+  background: #fff;
+  border-color: var(--line);
+  color: var(--ink-1);
+}
+:root[data-theme="light"] .pf-pg.active {
+  background: var(--cyan-deep);
+  border-color: var(--cyan-deep);
+  color: #fff;
+}
+:root[data-theme="light"] .board-search {
+  background: #ffffff;
+  border-color: var(--line);
+}
+:root[data-theme="light"] .modal-backdrop {
+  background: rgba(15, 20, 36, 0.45);
+}
+:root[data-theme="light"] .pf-banner-form,
+:root[data-theme="light"] .field input,
+:root[data-theme="light"] .field textarea,
+:root[data-theme="light"] .field select,
+:root[data-theme="light"] .pf-comment-form textarea {
+  background: #ffffff;
+  border-color: var(--line);
+  color: var(--ink-0);
+}
+:root[data-theme="light"] .md-table th { background: rgba(20, 30, 60, 0.04); }
+:root[data-theme="light"] .md-table tr:nth-child(2n) td { background: rgba(20, 30, 60, 0.02); }
+
+/* —— Theme toggle button —— */
+.pf-theme-toggle {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(20, 26, 46, 0.5);
+  color: var(--ink-1);
+  cursor: pointer;
+  display: inline-grid;
+  place-items: center;
+  font-size: 14px;
+  transition: background 160ms;
+}
+.pf-theme-toggle:hover {
+  background: rgba(60, 227, 255, 0.12);
+  color: var(--cyan);
+}
+:root[data-theme="light"] .pf-theme-toggle {
+  background: #ffffff;
+}
