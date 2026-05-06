@@ -63,7 +63,7 @@ function rewriteHtml(html) {
           jsxFragment: "React.Fragment",
           target: "es2020",
         });
-        return `<script>${result.code}</script>`;
+        return `<script>(function(){\n${result.code}\n})();</script>`;
       } catch (err) {
         console.error("inline babel block failed:", err);
         return `<script type="text/babel">${body}</script>`;
@@ -96,9 +96,14 @@ async function main() {
         target: "es2020",
         sourcefile: rel,
       });
-      // Output as .js with the same relative path
+      // Each script must have its own scope so top-level
+      // `const { useState } = React;` declarations don't collide across
+      // files (the original Babel Standalone setup did this implicitly).
+      // Wrap in an IIFE; component registration happens via `window.PF_*`
+      // assignments inside each file, which still work fine.
+      const wrapped = `(function(){\n${result.code}\n})();\n`;
       const jsDest = dest.replace(/\.jsx$/, ".js");
-      await writeFile(jsDest, result.code, "utf8");
+      await writeFile(jsDest, wrapped, "utf8");
       jsxCount++;
     } else if (file.endsWith(".html")) {
       const html = await readFile(file, "utf8");
