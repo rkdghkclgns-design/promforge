@@ -39,6 +39,23 @@ const UIProvider = ({ children }) => {
     return () => window.removeEventListener("keydown", onKey);
   }, [close]);
 
+  // Cross-component events: SearchModal / external code can request opening
+  // a post / study / showcase modal by id. Wired here so navigation works
+  // even when the calling component doesn't have access to UIContext.
+  useUE(() => {
+    const openPost = (e) => open("post", e.detail);
+    const openStudy = (e) => open("study", e.detail);
+    const openShowcase = (e) => open("showcase", e.detail);
+    window.addEventListener("pf:open-post", openPost);
+    window.addEventListener("pf:open-study", openStudy);
+    window.addEventListener("pf:open-showcase", openShowcase);
+    return () => {
+      window.removeEventListener("pf:open-post", openPost);
+      window.removeEventListener("pf:open-study", openStudy);
+      window.removeEventListener("pf:open-showcase", openShowcase);
+    };
+  }, [open]);
+
   return (
     <UIContext.Provider value={{ modal, open, close, toast, route, setRoute, discordUrl: DISCORD_URL }}>
       {children}
@@ -330,42 +347,90 @@ const ShowcaseModal = ({ game }) => {
 
 const StudyModal = ({ study }) => {
   const { toast, close } = useUI();
+
+  // 2-column field-row helper that visually matches the project info card
+  const Row = ({ label, value, accent }) => {
+    if (value === null || value === undefined || value === "" || (Array.isArray(value) && !value.length)) return null;
+    return (
+      <div style={{display:"flex",alignItems:"center",gap:12,padding:"6px 0",fontSize:13}}>
+        <span style={{minWidth:64,color:"var(--ink-3)"}}>{label}</span>
+        {Array.isArray(value)
+          ? <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>{value.map((v, i) =>
+              <span key={i} className="mono" style={{padding:"2px 8px",borderRadius:4,
+                  border:"1px solid var(--line)",fontSize:11.5,color:"var(--ink-1)"}}>{v}</span>)}</div>
+          : accent
+            ? <span className="mono" style={{padding:"2px 8px",borderRadius:4,
+                border:"1px solid " + accent.b,color:accent.c,background:accent.bg,fontSize:11.5}}>{value}</span>
+            : <span className="mono" style={{padding:"2px 8px",borderRadius:4,
+                border:"1px solid var(--line)",fontSize:11.5,color:"var(--ink-1)"}}>{value}</span>
+        }
+      </div>
+    );
+  };
+
+  const stageAccent = study.stage === "개발중"
+    ? { b: "rgba(255,138,60,0.4)", c: "var(--ember)", bg: "rgba(255,138,60,0.08)" }
+    : study.stage === "출시"
+      ? { b: "rgba(110,231,160,0.4)", c: "var(--green)", bg: "rgba(110,231,160,0.08)" }
+      : null;
+
   return (
     <>
-      <div className="kicker">// study group</div>
-      <h2>{study.title}</h2>
-      <p className="lede">{study.desc}</p>
-      <div className="meta-row">
-        <span>📅 {study.week}</span>
-        <span>· 👥 {study.total}</span>
-        <span>· 상태: {study.status === "recruit" ? "모집중" : study.status === "active" ? "진행중" : "마감"}</span>
+      <div className="kicker">// project · study</div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+        <span style={{display:"inline-grid",placeItems:"center",width:36,height:36,borderRadius:8,
+                      background:"rgba(154,140,255,0.12)",color:"var(--violet)"}}>🎮</span>
+        <h2 style={{margin:0}}>{study.title}</h2>
+        {study.visibility === "private" && (
+          <span title="비공개" style={{fontSize:13,color:"var(--ink-3)"}}>🔒</span>
+        )}
       </div>
-      <p className="body-text">
-        매주 정해진 시간에 모여서 함께 작업합니다. Discord 음성채널 + 깃 저장소 공유 + 매주 회고 세션.
-        모집중인 스터디는 신청 후 운영자 승인을 거칩니다.
+      {(study.desc || study.description) && <p className="lede" style={{marginTop:0}}>{study.desc || study.description}</p>}
+
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"0 24px",
+                   padding:"10px 0",borderTop:"1px solid var(--line)",borderBottom:"1px solid var(--line)",
+                   margin:"12px 0"}}>
+        <Row label="기간" value={study.duration} />
+        <Row label="단계" value={study.stage} accent={stageAccent} />
+        <Row label="플랫폼" value={study.platforms} />
+        <Row label="기술" value={study.tech} />
+        <Row label="장르" value={study.genre} />
+        <Row label="세부 장르" value={study.subgenre} />
+        <Row label="그래픽" value={study.graphics} />
+        <Row label="모집" value={study.total} />
+        {study.week && <Row label="진행" value={study.week} />}
+        <Row label="상태" value={study.status === "recruit" ? "모집중" : study.status === "active" ? "진행중" : "마감"} />
+      </div>
+
+      <p className="body-text" style={{fontSize:13}}>
+        Discord 음성채널 + 깃 저장소 공유 + 매주 회고 세션 형태로 진행됩니다. 신청 후 운영자가 검토합니다.
       </p>
       <div className="actions">
         <button className="btn btn-ghost" onClick={close}>닫기</button>
         {study.status === "full"
           ? <button className="btn btn-ghost" disabled>대기열 등록</button>
-          : <button className="btn btn-primary" onClick={() => toast(`'${study.title}' 스터디에 신청했습니다`, "신청")}>신청하기</button>}
+          : <button className="btn btn-primary" onClick={() => toast(`'${study.title}' 프로젝트에 신청했습니다`, "신청")}>신청하기</button>}
       </div>
     </>
   );
 };
 
 const ToolModal = ({ tool }) => {
-  const { toast } = useUI();
+  const { close, open } = useUI();
   return (
     <>
       <div className="kicker">// tool</div>
       <h2>{tool.name}</h2>
-      <p className="lede">{tool.cnt} · 커뮤니티에서 가장 활발히 논의되는 도구 중 하나</p>
+      <p className="lede">{tool.cnt} · 커뮤니티에서 활발히 논의되는 도구</p>
       <p className="body-text">
-        {tool.name} 관련 가이드, 프롬프트, 워크플로 글을 모아 보여주는 페이지로 이동합니다.
+        '{tool.name}' 관련 글을 검색해 봅니다. 게시판 통합 검색 결과로 이동합니다.
       </p>
       <div className="actions">
-        <button className="btn btn-primary" onClick={() => toast(`'${tool.name}' 태그 글 모음으로 이동`, "필터")}>{tool.name} 글 보기</button>
+        <button className="btn btn-ghost" onClick={close}>닫기</button>
+        <button className="btn btn-primary"
+                onClick={() => { close(); open("search", tool.name); }}>
+          {tool.name} 검색 결과 보기 →
+        </button>
       </div>
     </>
   );
@@ -587,14 +652,43 @@ const NewPostModal = () => {
   );
 };
 
+const STUDY_DURATIONS = ["단기 (3개월 이내)", "중기 (1년 이내)", "장기 (1년 이상)", "미정"];
+const STUDY_STAGES = ["기획", "개발중", "베타", "출시", "운영"];
+const STUDY_PLATFORMS = ["PC", "모바일", "콘솔", "웹", "VR/AR"];
+const STUDY_TECH = ["Unity", "Godot", "Unreal", "Phaser.js", "Web/JS", "Python", "기타"];
+const STUDY_GENRES = ["RPG", "액션", "어드벤처", "퍼즐", "시뮬", "전략", "캐주얼", "스포츠", "리듬"];
+const STUDY_SUBGENRES = ["플랫포머", "로그라이크", "비주얼노벨", "샌드박스", "타워디펜스", "하이브리드", "기타"];
+const STUDY_GRAPHICS = ["2D", "3D", "픽셀", "도트 3D", "수채화", "기타"];
+
 const NewStudyModal = () => {
   const { toast, close, open } = useUI();
-  const [form, setForm] = useUS({ title: "", description: "", total: "0/10" });
+  const [form, setForm] = useUS({
+    title: "",
+    description: "",
+    total: "0/10",
+    duration: "중기 (1년 이내)",
+    stage: "개발중",
+    platforms: ["PC"],
+    tech: "Unity",
+    genre: "어드벤처",
+    subgenre: "플랫포머",
+    graphics: "2D",
+    visibility: "public",
+  });
   const [busy, setBusy] = useUS(false);
   const [error, setError] = useUS(null);
+
+  const togglePlatform = (p) => {
+    setForm((f) => {
+      const has = f.platforms.includes(p);
+      return { ...f, platforms: has ? f.platforms.filter((x) => x !== p) : [...f.platforms, p] };
+    });
+  };
+
   const submit = async () => {
     setError(null);
-    if (!form.title.trim()) { setError("스터디명을 입력해주세요."); return; }
+    if (!form.title.trim()) { setError("프로젝트명을 입력해주세요."); return; }
+    if (!form.platforms.length) { setError("플랫폼을 1개 이상 선택해주세요."); return; }
     setBusy(true);
     try {
       const r = await fetch("https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/studies", {
@@ -610,21 +704,140 @@ const NewStudyModal = () => {
       const data = await r.json();
       if (!r.ok) throw data;
       close();
-      toast("스터디 모집이 게시되었습니다", "공개");
+      toast("프로젝트가 게시되었습니다", form.visibility === "private" ? "비공개" : "공개");
     } catch (err) {
       const code = err?.error;
       if (code === "login_required") { setError("로그인이 필요합니다."); open("login"); }
       else setError("게시 실패: " + (err.detail || code || "오류"));
     } finally { setBusy(false); }
   };
+
+  // Compact 2-col grid for select fields
+  const grid2 = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 };
+  const lbl = { fontSize: 11, color: "var(--ink-2)", letterSpacing: "0.06em", textTransform: "uppercase",
+    fontFamily: "JetBrains Mono, monospace", marginBottom: 6, display: "block" };
+
   return (
     <>
-      <div className="kicker">// 스터디 만들기</div>
-      <h2>새 스터디 모집</h2>
-      <label className="field"><label>스터디명</label><input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="예) Godot + LLM 6주 스프린트" /></label>
-      <label className="field"><label>소개</label><textarea rows={4} value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="누구를 모집하는지, 무엇을 함께 할지 적어주세요" /></label>
-      <label className="field"><label>정원</label><input value={form.total} onChange={e => setForm({...form, total: e.target.value})} placeholder="예) 0/12" /></label>
+      <div className="kicker">// 스터디 / 프로젝트 모집</div>
+      <h2>새 프로젝트 등록</h2>
+      <p className="lede">팀 빌딩이나 동료 모집을 위해 프로젝트 정보를 입력하세요.</p>
+
+      <label className="field">
+        <label>프로젝트명 *</label>
+        <input value={form.title}
+               onChange={e => setForm({...form, title: e.target.value})}
+               placeholder="예) Corrupted [The Unreal Spanker]" />
+      </label>
+
+      <label className="field">
+        <label>소개</label>
+        <textarea rows={3} value={form.description}
+                  onChange={e => setForm({...form, description: e.target.value})}
+                  placeholder="프로젝트 컨셉, 모집 포지션, 진행 방식 등을 적어주세요" />
+      </label>
+
+      <div style={grid2}>
+        <div>
+          <span style={lbl}>기간</span>
+          <select value={form.duration} onChange={e => setForm({...form, duration: e.target.value})}
+                  style={{width:"100%",padding:"10px 12px",background:"transparent",
+                          border:"1px solid var(--line)",borderRadius:8,color:"var(--ink-0)",
+                          fontFamily:"inherit",fontSize:13}}>
+            {STUDY_DURATIONS.map(d => <option key={d} value={d}>{d}</option>)}
+          </select>
+        </div>
+        <div>
+          <span style={lbl}>단계</span>
+          <select value={form.stage} onChange={e => setForm({...form, stage: e.target.value})}
+                  style={{width:"100%",padding:"10px 12px",background:"transparent",
+                          border:"1px solid var(--line)",borderRadius:8,color:"var(--ink-0)",
+                          fontFamily:"inherit",fontSize:13}}>
+            {STUDY_STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={{marginBottom: 10}}>
+        <span style={lbl}>플랫폼 (복수 선택)</span>
+        <div style={{display: "flex", gap: 6, flexWrap: "wrap"}}>
+          {STUDY_PLATFORMS.map(p => {
+            const active = form.platforms.includes(p);
+            return (
+              <button key={p} type="button" onClick={() => togglePlatform(p)}
+                      style={{
+                        padding: "6px 12px", borderRadius: 6,
+                        background: active ? "rgba(60,227,255,0.12)" : "transparent",
+                        border: "1px solid " + (active ? "rgba(60,227,255,0.4)" : "var(--line)"),
+                        color: active ? "var(--cyan)" : "var(--ink-2)",
+                        fontSize: 12, cursor: "pointer", fontFamily: "JetBrains Mono, monospace",
+                      }}>{p}</button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div style={grid2}>
+        <div>
+          <span style={lbl}>기술</span>
+          <select value={form.tech} onChange={e => setForm({...form, tech: e.target.value})}
+                  style={{width:"100%",padding:"10px 12px",background:"transparent",
+                          border:"1px solid var(--line)",borderRadius:8,color:"var(--ink-0)",
+                          fontFamily:"inherit",fontSize:13}}>
+            {STUDY_TECH.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <span style={lbl}>그래픽</span>
+          <select value={form.graphics} onChange={e => setForm({...form, graphics: e.target.value})}
+                  style={{width:"100%",padding:"10px 12px",background:"transparent",
+                          border:"1px solid var(--line)",borderRadius:8,color:"var(--ink-0)",
+                          fontFamily:"inherit",fontSize:13}}>
+            {STUDY_GRAPHICS.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={grid2}>
+        <div>
+          <span style={lbl}>장르</span>
+          <select value={form.genre} onChange={e => setForm({...form, genre: e.target.value})}
+                  style={{width:"100%",padding:"10px 12px",background:"transparent",
+                          border:"1px solid var(--line)",borderRadius:8,color:"var(--ink-0)",
+                          fontFamily:"inherit",fontSize:13}}>
+            {STUDY_GENRES.map(g => <option key={g} value={g}>{g}</option>)}
+          </select>
+        </div>
+        <div>
+          <span style={lbl}>세부 장르</span>
+          <select value={form.subgenre} onChange={e => setForm({...form, subgenre: e.target.value})}
+                  style={{width:"100%",padding:"10px 12px",background:"transparent",
+                          border:"1px solid var(--line)",borderRadius:8,color:"var(--ink-0)",
+                          fontFamily:"inherit",fontSize:13}}>
+            {STUDY_SUBGENRES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <div style={grid2}>
+        <label className="field" style={{margin: 0}}>
+          <label>모집 정원</label>
+          <input value={form.total} onChange={e => setForm({...form, total: e.target.value})} placeholder="예) 0/12" />
+        </label>
+        <div>
+          <span style={lbl}>공개 범위</span>
+          <select value={form.visibility} onChange={e => setForm({...form, visibility: e.target.value})}
+                  style={{width:"100%",padding:"10px 12px",background:"transparent",
+                          border:"1px solid var(--line)",borderRadius:8,color:"var(--ink-0)",
+                          fontFamily:"inherit",fontSize:13}}>
+            <option value="public">공개</option>
+            <option value="private">비공개 (작성자만)</option>
+          </select>
+        </div>
+      </div>
+
       {error && <div style={{color:'var(--ember)', fontSize:13, marginBottom:8}}>{error}</div>}
+
       <div className="actions">
         <button className="btn btn-ghost" onClick={close} disabled={busy}>취소</button>
         <button className="btn btn-primary" onClick={submit} disabled={busy}>{busy ? "게시 중…" : "공개하기"}</button>
@@ -672,7 +885,50 @@ const SearchModal = ({ initial }) => {
         ) : results.length === 0 ? (
           <div style={{color: "var(--ink-3)", fontSize: 13, padding: "20px 0", textAlign: "center"}}>'{q}' 와 일치하는 결과가 없습니다</div>
         ) : results.map((r, i) => (
-          <div key={r.id || i} onClick={() => { close(); toast(`'${r.title}' 선택됨`, r.kind.toUpperCase()); }} style={{padding: "10px 0", borderBottom: "1px solid var(--line)", cursor: "pointer"}}>
+          <div key={r.id || i}
+               onClick={async () => {
+                 close();
+                 if (r.kind === "post") {
+                   // Navigate to the board first if known, then open the post modal.
+                   if (r.board_slug) {
+                     const ui2 = window.PF_UI;
+                     // Use route hash so it works regardless of which view is mounted.
+                     window.location.hash = "#board:" + r.board_slug;
+                   }
+                   // Hydrate full post + open modal.
+                   try {
+                     const resp = await fetch(`https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/posts/${r.id}`, {
+                       headers: {
+                         apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+                         Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+                         'x-pf-token': window.PF_API._internal.getToken() || '',
+                       },
+                     });
+                     const data = await resp.json();
+                     if (data.post) setTimeout(() => window.PF_UI.useUI && window.__pfOpenPost?.(data.post), 100);
+                     // simpler: just dispatch event and let App handler open the modal
+                     window.dispatchEvent(new CustomEvent('pf:open-post', { detail: data.post }));
+                   } catch (e) { toast("게시글을 불러오지 못했습니다", "오류"); }
+                 } else if (r.kind === "study") {
+                   try {
+                     const resp = await fetch(`https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/studies/${r.id}`, {
+                       headers: {
+                         apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+                         Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+                         'x-pf-token': window.PF_API._internal.getToken() || '',
+                       },
+                     });
+                     const data = await resp.json();
+                     if (data.study) window.dispatchEvent(new CustomEvent('pf:open-study', { detail: data.study }));
+                     else toast("스터디를 찾지 못했습니다", "오류");
+                   } catch (e) { toast("스터디를 불러오지 못했습니다", "오류"); }
+                 } else if (r.kind === "game") {
+                   window.dispatchEvent(new CustomEvent('pf:open-showcase', {
+                     detail: { id: r.id, title: r.title, genre: r.sub, author: "@unknown" }
+                   }));
+                 }
+               }}
+               style={{padding: "10px 0", borderBottom: "1px solid var(--line)", cursor: "pointer"}}>
             <div style={{fontSize: 14, color: "var(--ink-0)", fontWeight: 500}}>{r.title}</div>
             <div style={{fontSize: 12, color: "var(--ink-3)", fontFamily: "JetBrains Mono, monospace", marginTop: 2}}>{r.kind} · {r.sub}</div>
           </div>
