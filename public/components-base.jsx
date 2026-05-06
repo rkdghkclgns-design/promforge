@@ -295,6 +295,7 @@ const Boards = () => {
 };
 
 // —— BoardDetailPage ——
+const PAGE_SIZE = 15;
 const BoardDetailPage = ({ slug }) => {
   const ui = window.PF_UI.useUI();
   const [board, setBoard] = useState(null);
@@ -303,23 +304,42 @@ const BoardDetailPage = ({ slug }) => {
   const [loading, setLoading] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
 
+  // search + pagination
+  const [page, setPage] = useState(1);          // 1-based
+  const [total, setTotal] = useState(0);
+  const [searchInput, setSearchInput] = useState("");
+  const [activeQ, setActiveQ] = useState("");
+
+  // Load board metadata once per slug.
+  useEffect(() => {
+    let alive = true;
+    window.PF_API.boards().then((bRes) => {
+      if (!alive) return;
+      const found = (bRes.boards || []).find((b) => b.slug === slug);
+      setBoard(found ? {
+        ...found,
+        desc: found.description,
+        ...(SLUG_TO_VISUAL[found.slug] ?? { color: "cyan", glyph: "spark" }),
+      } : null);
+    }).catch(() => { /* keep null */ });
+    return () => { alive = false; };
+  }, [slug]);
+
+  // Reset to page 1 when slug / tab / search query changes.
+  useEffect(() => { setPage(1); }, [slug, tab, activeQ]);
+
+  // Load page data when slug/tab/page/q changes.
   useEffect(() => {
     let alive = true;
     (async () => {
       setLoading(true);
       try {
-        const [bRes, pRes] = await Promise.all([
-          window.PF_API.boards(),
-          window.PF_API.posts({ board: slug, tab, limit: 30 }),
-        ]);
+        const params = { board: slug, tab, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE };
+        if (activeQ) params.q = activeQ;
+        const pRes = await window.PF_API.posts(params);
         if (!alive) return;
-        const found = bRes.boards.find((b) => b.slug === slug);
-        setBoard(found ? {
-          ...found,
-          desc: found.description,
-          ...(SLUG_TO_VISUAL[found.slug] ?? { color: "cyan", glyph: "spark" }),
-        } : null);
         setPosts(pRes.posts || []);
+        setTotal(pRes.total ?? 0);
       } catch (err) {
         ui.toast("게시판을 불러오지 못했습니다", "오류");
       } finally {
@@ -327,7 +347,25 @@ const BoardDetailPage = ({ slug }) => {
       }
     })();
     return () => { alive = false; };
-  }, [slug, tab]);
+  }, [slug, tab, page, activeQ]);
+
+  const submitSearch = (e) => {
+    e?.preventDefault();
+    setActiveQ(searchInput.trim());
+  };
+  const clearSearch = () => { setSearchInput(""); setActiveQ(""); };
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pageWindow = (() => {
+    // Show up to 7 page buttons centered on current page.
+    const span = 7;
+    let start = Math.max(1, page - Math.floor(span / 2));
+    let end = Math.min(totalPages, start + span - 1);
+    start = Math.max(1, end - span + 1);
+    const arr = [];
+    for (let i = start; i <= end; i++) arr.push(i);
+    return arr;
+  })();
 
   if (!board && !loading) {
     return (
@@ -386,18 +424,41 @@ const BoardDetailPage = ({ slug }) => {
           </div>
         </div>
 
-        <div className="tabs" style={{marginBottom: 14}}>
-          <button className={"tab" + (tab === "hot" ? " active" : "")} onClick={() => setTab("hot")}>🔥 인기글</button>
-          <button className={"tab" + (tab === "latest" ? " active" : "")} onClick={() => setTab("latest")}>최신글</button>
+        <div className="board-toolbar">
+          <div className="tabs" style={{margin: 0}}>
+            <button className={"tab" + (tab === "hot" ? " active" : "")} onClick={() => setTab("hot")}>🔥 인기글</button>
+            <button className={"tab" + (tab === "latest" ? " active" : "")} onClick={() => setTab("latest")}>최신글</button>
+          </div>
+          <form className="board-search" onSubmit={submitSearch}>
+            <Icon name="search" className="icn" />
+            <input value={searchInput} onChange={(e) => setSearchInput(e.target.value)}
+                   placeholder={`'${board?.title || "게시판"}'에서 검색…`} />
+            {searchInput && (
+              <button type="button" className="board-search-clear"
+                      onClick={() => { setSearchInput(""); if (activeQ) setActiveQ(""); }}
+                      aria-label="지우기">✕</button>
+            )}
+            <button type="submit" className="btn btn-ghost" style={{padding:"6px 12px",fontSize:12,marginLeft:6}}>검색</button>
+          </form>
         </div>
+
+        {activeQ && (
+          <div style={{padding:"10px 14px",borderRadius:8,background:"rgba(60,227,255,0.06)",border:"1px solid rgba(60,227,255,0.18)",fontSize:13,color:"var(--ink-1)",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+            <span><span className="mono" style={{color:"var(--cyan)"}}>'{activeQ}'</span> 검색 결과 {total.toLocaleString()}건</span>
+            <button className="btn btn-ghost" style={{padding:"4px 10px",fontSize:11}} onClick={clearSearch}>전체 보기</button>
+          </div>
+        )}
 
         <div className="post-list">
           {loading ? (
             <div style={{padding:40,textAlign:"center",color:"var(--ink-3)"}}>불러오는 중…</div>
           ) : posts.length === 0 ? (
             <div style={{padding:40,textAlign:"center",color:"var(--ink-3)"}}>
-              아직 이 보드에 글이 없습니다. <br/>
-              <button className="btn btn-primary" style={{marginTop:14}} onClick={() => ui.open("newpost")}>첫 글 작성하기</button>
+              {activeQ
+                ? <>'{activeQ}' 와 일치하는 글이 없습니다.<br/>다른 키워드로 검색해보세요.</>
+                : <>아직 이 보드에 글이 없습니다. <br/>
+                    <button className="btn btn-primary" style={{marginTop:14}} onClick={() => ui.open("newpost")}>첫 글 작성하기</button>
+                  </>}
             </div>
           ) : posts.map((p, i) => (
             <div key={p.id || i} className={"post-row " + (board?.color || "cyan")} onClick={() => ui.open("post", p)}>
@@ -419,6 +480,26 @@ const BoardDetailPage = ({ slug }) => {
             </div>
           ))}
         </div>
+
+        {totalPages > 1 && (
+          <nav className="pf-pager" aria-label="페이지 이동">
+            <div className="pf-pager-info">
+              {((page - 1) * PAGE_SIZE + 1).toLocaleString()}–{Math.min(page * PAGE_SIZE, total).toLocaleString()}
+              <span style={{color:"var(--ink-3)"}}> / {total.toLocaleString()}</span>
+            </div>
+            <div className="pf-pager-buttons">
+              <button className="pf-pg" disabled={page === 1} onClick={() => setPage(1)}>« 처음</button>
+              <button className="pf-pg" disabled={page === 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>‹ 이전</button>
+              {pageWindow[0] > 1 && <span className="pf-pg-ellipsis">…</span>}
+              {pageWindow.map((n) => (
+                <button key={n} className={"pf-pg" + (n === page ? " active" : "")} onClick={() => setPage(n)}>{n}</button>
+              ))}
+              {pageWindow[pageWindow.length - 1] < totalPages && <span className="pf-pg-ellipsis">…</span>}
+              <button className="pf-pg" disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>다음 ›</button>
+              <button className="pf-pg" disabled={page >= totalPages} onClick={() => setPage(totalPages)}>끝 »</button>
+            </div>
+          </nav>
+        )}
       </div>
     </section>
   );
