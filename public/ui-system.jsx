@@ -356,25 +356,79 @@ const BoardModal = ({ board }) => {
 };
 
 const ShowcaseModal = ({ game }) => {
-  const { toast } = useUI();
+  const { toast, open } = useUI();
+  const session = window.PF_AUTH?.useSession?.() ?? { user: null };
+  const [showMessage, setShowMessage] = useUS(false);
+  const [message, setMessage] = useUS("");
+  const [busy, setBusy] = useUS(false);
+
+  const handle = (game.author || "").replace(/^@+/, "");
+  const sendMessage = async () => {
+    if (!message.trim()) return;
+    if (!session.user) { open("login"); return; }
+    setBusy(true);
+    try {
+      // Routed through the contact endpoint so the message lands in the
+      // admin's inbox (DB-backed) and the maker is notified by email later.
+      await window.PF_API.contact({
+        category: "general",
+        subject: `[쇼케이스 메시지] ${game.title} → @${handle}`,
+        message: `보낸이: @${session.user.username}\n게임: ${game.title}\n수신자: @${handle}\n\n${message.trim()}`,
+        name: session.user.nickname || session.user.username,
+        email: session.user.email,
+      });
+      toast(`@${handle} 에게 메시지를 보냈습니다`, "메시지");
+      setMessage("");
+      setShowMessage(false);
+    } catch (err) {
+      toast("전송 실패: " + (err.message || ""), "오류");
+    } finally { setBusy(false); }
+  };
+
   return (
     <>
       <div className="kicker">// showcase</div>
       <h2>{game.title}</h2>
       <p className="lede">{game.genre} · {game.author}</p>
-      <div style={{height: 220, borderRadius: 10, marginBottom: 16,
-        background: "radial-gradient(circle at 30% 40%, rgba(255,138,60,0.18), transparent 50%), radial-gradient(circle at 70% 70%, rgba(60,227,255,0.15), transparent 50%), var(--bg-2)",
-        border: "1px solid var(--line)", display: "grid", placeItems: "center",
-        fontFamily: "JetBrains Mono", fontSize: 12, color: "var(--ink-3)", letterSpacing: "0.1em", textTransform: "uppercase"}}>
-        [ {game.title} — gameplay preview ]
-      </div>
+      {game.image_url ? (
+        <img src={game.image_url} alt="" className="md-hero" />
+      ) : (
+        <div style={{height: 220, borderRadius: 10, marginBottom: 16,
+          background: "radial-gradient(circle at 30% 40%, rgba(255,138,60,0.18), transparent 50%), radial-gradient(circle at 70% 70%, rgba(60,227,255,0.15), transparent 50%), var(--bg-2)",
+          border: "1px solid var(--line)", display: "grid", placeItems: "center",
+          fontFamily: "JetBrains Mono", fontSize: 12, color: "var(--ink-3)", letterSpacing: "0.1em", textTransform: "uppercase"}}>
+          [ {game.title} — gameplay preview ]
+        </div>
+      )}
       <p className="body-text">
-        AI 도구를 활용해 만든 커뮤니티 출시작입니다. 빌드 일지, 사용한 프롬프트, 멤버 피드백을 함께 확인할 수 있어요.
+        {game.note || game.description ||
+          "AI 도구를 활용해 만든 커뮤니티 출시작입니다. 빌드 일지, 사용한 프롬프트, 멤버 피드백을 함께 확인할 수 있어요."}
       </p>
-      <div className="actions">
-        <button className="btn btn-ghost" onClick={() => toast(`@${game.author.replace("@","")} 팔로우`, "구독")}>제작자 팔로우</button>
-        <button className="btn btn-cyan" onClick={() => toast(`'${game.title}' 플레이 시작`, "플레이")}>플레이하기 →</button>
-      </div>
+
+      {showMessage && (
+        <div className="field" style={{marginTop: 14}}>
+          <label>@{handle} 에게 보낼 메시지</label>
+          <textarea rows={4} value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    placeholder="피드백, 협업 제안, 응원 메시지 등을 자유롭게 작성하세요." />
+          <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginTop:8}}>
+            <button className="btn btn-ghost" onClick={() => setShowMessage(false)} disabled={busy}>취소</button>
+            <button className="btn btn-primary" onClick={sendMessage} disabled={busy || !message.trim()}>
+              {busy ? "전송 중…" : "메시지 전송"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {!showMessage && (
+        <div className="actions">
+          <button className="btn btn-ghost" onClick={() => toast(`@${handle} 팔로우`, "구독")}>제작자 팔로우</button>
+          <button className="btn btn-cyan"
+                  onClick={() => session.user ? setShowMessage(true) : open("login")}>
+            ✉ 제작자에게 메시지 보내기
+          </button>
+        </div>
+      )}
     </>
   );
 };

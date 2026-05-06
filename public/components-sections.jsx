@@ -27,9 +27,10 @@ const PostsSection = () => {
       let list = res.posts ?? [];
       if (which === "verified") list = list.filter((p) => p.badge && p.badge.includes("검증"));
       // Community feed is theme-agnostic — same posts in light and dark mode.
-      // Limited to 5 entries per request (preview-style); full list lives on
-      // each board's detail page.
-      list = list.slice(0, 5);
+      // Capped to 4 entries so the feed bottom aligns with the right rail's
+      // ranking card bottom (digest + 8 maker rows). Full list lives on each
+      // board's detail page.
+      list = list.slice(0, 4);
       setPosts(list);
       setCounts((c) => ({ ...c, [which]: list.length }));
     } catch {
