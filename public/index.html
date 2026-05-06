@@ -55,28 +55,8 @@ const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "showTicker": true
 }/*EDITMODE-END*/;
 
-// Decorate the original Nav with the live session badge + theme toggle.
-// z-index has to beat .nav (50) so the overlay appears in front, otherwise
-// the original Nav's right-side action buttons cover both NavSession and
-// the theme toggle.
-const NavWithSession = () => (
-  <div style={{ position: 'relative', zIndex: 60 }}>
-    <Nav />
-    <div style={{
-      position: 'absolute',
-      right: 28,
-      top: 14,
-      zIndex: 60,
-      display: 'flex',
-      alignItems: 'center',
-      gap: 8,
-      pointerEvents: 'auto',
-    }}>
-      {window.PF_THEME?.ThemeToggle && <window.PF_THEME.ThemeToggle />}
-      <NavSession />
-    </div>
-  </div>
-);
+// Nav is now session-aware internally — no overlay needed.
+const NavWithSession = Nav;
 
 const TweaksUI = () => {
   const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);

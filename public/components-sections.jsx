@@ -96,11 +96,12 @@ const PostsSection = () => {
 };
 
 const Showcase = () => {
+  // ALL hooks must run before any early-return so the call order is stable
+  // across renders (otherwise React throws "Rendered more hooks than during
+  // the previous render" when toggling theme).
   const ui = window.PF_UI.useUI();
   const [items, setItems] = useS2(window.PF_DATA.showcases);
   const [theme] = window.PF_THEME?.useTheme?.() ?? ["light"];
-  // Hide entire showcase section in light mode
-  if (theme !== "dark") return null;
   useE2(() => {
     let alive = true;
     window.PF_API.showcases().then((res) => {
@@ -117,6 +118,8 @@ const Showcase = () => {
     }).catch(() => { /* keep mock */ });
     return () => { alive = false; };
   }, []);
+  // Hide entire showcase section in light mode (after hooks have run).
+  if (theme !== "dark") return null;
   return (
     <section className="section" id="showcase">
       <div className="container">

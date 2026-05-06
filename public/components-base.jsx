@@ -32,15 +32,23 @@ const Icon = ({ name, className = "icn" }) => {
 };
 
 // —— Nav ——
+// Session-aware: shows login/signup OR user badge depending on auth state.
+// Replaces the old absolute-overlay NavSession to avoid duplicate buttons.
 const Nav = () => {
   const ui = window.PF_UI.useUI();
   const [searchVal, setSearchVal] = useState("");
-  const links = [
-    ["home", "홈"], ["board", "게시판"], ["showcase", "쇼케이스"],
-    ["studies", "스터디"], ["forge", "내 작업장"], ["digest", "다이제스트"], ["admin", "관리자"]
-  ];
+  const session = window.PF_AUTH?.useSession?.() ?? { user: null, ready: false };
+  const ThemeToggle = window.PF_THEME?.ThemeToggle;
 
-  // Cmd/Ctrl+K to open search
+  const baseLinks = [
+    ["home", "홈"], ["board", "게시판"], ["showcase", "쇼케이스"],
+    ["studies", "스터디"], ["forge", "내 작업장"], ["digest", "다이제스트"]
+  ];
+  // Only include the admin link when the current user is an admin.
+  const links = session.user?.role === "admin"
+    ? [...baseLinks, ["admin", "관리자"]]
+    : baseLinks;
+
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -54,22 +62,19 @@ const Nav = () => {
 
   const onLink = (id, e) => {
     e.preventDefault();
-    if (id === "forge") {
-      ui.open("forge");
-      return;
-    }
-    if (id === "digest") {
-      ui.open("subscribe");
-      return;
-    }
-    if (id === "admin") {
-      ui.setRoute("admin");
-      return;
-    }
+    if (id === "forge") { ui.open("forge"); return; }
+    if (id === "digest") { ui.open("subscribe"); return; }
+    if (id === "admin") { ui.setRoute("admin"); return; }
     ui.setRoute(id);
-    // also scroll to anchor section if exists
     const target = document.getElementById(id);
     if (target) target.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const onLogout = async () => {
+    await window.PF_API.auth.logout();
+    window.PF_AUTH.setSession({ user: null, ready: true });
+    ui.toast("로그아웃 되었습니다", "OK");
+    if (ui.route === "admin" || ui.route?.startsWith("board:")) ui.setRoute("home");
   };
 
   return (
@@ -97,11 +102,25 @@ const Nav = () => {
             <Icon name="discord" className="icn" />
             Discord
           </a>
-          <button className="btn btn-ghost hide-sm" onClick={() => ui.open("login")}>로그인</button>
-          <button className="btn btn-primary" onClick={() => ui.open("signup")}>
-            <Icon name="flame" className="icn" />
-            포지 가입
-          </button>
+          {ThemeToggle && <ThemeToggle />}
+          {!session.ready ? (
+            <span style={{ color: "var(--ink-3)", fontSize: 12 }}>…</span>
+          ) : session.user ? (
+            <>
+              <span className="mono hide-sm" style={{ fontSize: 12, color: "var(--cyan)" }}>
+                @{session.user.username}{session.user.role === "admin" ? " · ADMIN" : ""}
+              </span>
+              <button className="btn btn-ghost" onClick={onLogout}>로그아웃</button>
+            </>
+          ) : (
+            <>
+              <button className="btn btn-ghost hide-sm" onClick={() => ui.open("login")}>로그인</button>
+              <button className="btn btn-primary" onClick={() => ui.open("signup")}>
+                <Icon name="flame" className="icn" />
+                포지 가입
+              </button>
+            </>
+          )}
         </div>
       </div>
     </header>
@@ -296,35 +315,18 @@ const Boards = () => {
 // —— BoardDetailPage ——
 const PAGE_SIZE = 15;
 const BoardDetailPage = ({ slug }) => {
+  // ALL hooks must be declared at the top before any early-return so React's
+  // hook call order stays stable across renders. Otherwise toggling theme
+  // (which changes which branch runs) throws "Rendered more hooks…".
   const ui = window.PF_UI.useUI();
   const [board, setBoard] = useState(null);
   const [posts, setPosts] = useState([]);
   const [tab, setTab] = useState("hot");
   const [loading, setLoading] = useState(true);
   const [subscribed, setSubscribed] = useState(false);
-  const [theme, setTheme] = (window.PF_THEME?.useTheme?.() ?? ["light", () => {}, () => {}]).slice(0, 2);
-
-  // If user lands on a dark-only board in light mode, prompt to switch.
-  const isDarkOnly = window.PF_THEME?.isDarkOnly?.(slug);
-  if (isDarkOnly && theme === "light") {
-    return (
-      <div className="container" style={{padding:"80px 28px",textAlign:"center",maxWidth:560,margin:"0 auto"}}>
-        <div className="kicker" style={{justifyContent:"center"}}>// 다크 모드 전용</div>
-        <h2 style={{margin:"12px 0"}}>이 게시판은 다크 모드에서만 노출됩니다</h2>
-        <p style={{color:"var(--ink-2)",fontSize:14,marginBottom:24,lineHeight:1.6}}>
-          쇼케이스 / 일러스트 / 코스프레는 분위기에 어울리는 다크 모드에서 표시됩니다.<br/>
-          우상단 ☾ 버튼으로 전환하거나 아래 버튼으로 바로 전환할 수 있습니다.
-        </p>
-        <div style={{display:"flex",gap:8,justifyContent:"center"}}>
-          <button className="btn btn-ghost" onClick={() => ui.setRoute("home")}>홈으로</button>
-          <button className="btn btn-primary" onClick={() => { window.PF_THEME.setTheme("dark"); }}>다크 모드로 전환</button>
-        </div>
-      </div>
-    );
-  }
-
+  const [theme] = (window.PF_THEME?.useTheme?.() ?? ["light", () => {}, () => {}]).slice(0, 2);
   // search + pagination
-  const [page, setPage] = useState(1);          // 1-based
+  const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [searchInput, setSearchInput] = useState("");
   const [activeQ, setActiveQ] = useState("");
@@ -385,6 +387,25 @@ const BoardDetailPage = ({ slug }) => {
     for (let i = start; i <= end; i++) arr.push(i);
     return arr;
   })();
+
+  // Dark-only board guard (placed AFTER all hooks).
+  const isDarkOnly = window.PF_THEME?.isDarkOnly?.(slug);
+  if (isDarkOnly && theme === "light") {
+    return (
+      <div className="container" style={{padding:"80px 28px",textAlign:"center",maxWidth:560,margin:"0 auto"}}>
+        <div className="kicker" style={{justifyContent:"center"}}>// 다크 모드 전용</div>
+        <h2 style={{margin:"12px 0"}}>이 게시판은 다크 모드에서만 노출됩니다</h2>
+        <p style={{color:"var(--ink-2)",fontSize:14,marginBottom:24,lineHeight:1.6}}>
+          쇼케이스 / 일러스트 / 코스프레는 분위기에 어울리는 다크 모드에서 표시됩니다.<br/>
+          우상단 ☾ 버튼으로 전환하거나 아래 버튼으로 바로 전환할 수 있습니다.
+        </p>
+        <div style={{display:"flex",gap:8,justifyContent:"center"}}>
+          <button className="btn btn-ghost" onClick={() => ui.setRoute("home")}>홈으로</button>
+          <button className="btn btn-primary" onClick={() => { window.PF_THEME.setTheme("dark"); }}>다크 모드로 전환</button>
+        </div>
+      </div>
+    );
+  }
 
   if (!board && !loading) {
     return (
