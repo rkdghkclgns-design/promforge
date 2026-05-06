@@ -310,8 +310,14 @@ const Boards = () => {
           </div>
         </div>
         <div className="boards-grid">
-          {visibleBoards.map(b => (
-            <div key={b.slug || b.id} className={"board-card " + b.color}
+          {visibleBoards.map((b, i) => {
+            // If the last row would leave a 4-col grid with only the last two
+            // boards (e.g. 10 boards visible), make those two each span 2 cols
+            // so the row visually fills the container.
+            const lastRowRemainder = visibleBoards.length % 4;
+            const span2 = lastRowRemainder === 2 && i >= visibleBoards.length - 2;
+            return (
+            <div key={b.slug || b.id} className={"board-card " + b.color + (span2 ? " span-2" : "")}
                  onClick={() => ui.setRoute("board:" + (b.slug || b.id))}
                  style={{position:"relative"}}>
               <button className="bell-btn" title="새 글 알림 받기"
@@ -329,7 +335,8 @@ const Boards = () => {
                 <span className="new">+{b.today} today</span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </section>

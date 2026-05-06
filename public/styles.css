@@ -422,6 +422,18 @@ img { display: block; max-width: 100%; }
   grid-template-columns: repeat(4, 1fr);
   gap: 14px;
 }
+/* Wide boards: when the visible board count leaves an odd remainder
+   in the last row (e.g. 10 boards = 4-4-2), force the last two to span
+   2 columns each so the row is filled. */
+.board-card.span-2 { grid-column: span 2; }
+@media (max-width: 1080px) {
+  .boards-grid { grid-template-columns: repeat(2, 1fr); }
+  .board-card.span-2 { grid-column: span 1; }
+}
+@media (max-width: 600px) {
+  .boards-grid { grid-template-columns: 1fr; }
+  .board-card.span-2 { grid-column: span 1; }
+}
 .board-card {
   position: relative;
   padding: 18px;
@@ -2061,6 +2073,8 @@ footer {
   border: 1px solid var(--line);
   border-radius: 10px;
   margin-bottom: 6px;
+  /* Card form needs internal horizontal padding (dark uses borderless rows). */
+  padding: 14px 18px;
 }
 :root[data-theme="light"] .post-row:hover { background: #fafbff; box-shadow: 0 2px 8px rgba(20, 30, 60, 0.06); }
 :root[data-theme="light"] .post-row .t { color: var(--ink-0); font-weight: 500; }
