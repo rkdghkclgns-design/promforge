@@ -19,14 +19,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Stage static site
-        run: |
-          mkdir -p site
-          cp -r public/* site/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install (esbuild + deps)
+        run: npm install --no-audit --no-fund
+      - name: Pre-compile JSX → JS (eliminate Babel Standalone)
+        run: npm run build:pages
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: ./site
+          path: ./dist
 
   deploy:
     needs: build
