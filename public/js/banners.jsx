@@ -1,8 +1,10 @@
-/* PromForge — RollingBanner + PopupBanner.
-   Admin-controlled via /admin/banners CRUD; public read via /banners.
+/* PromForge — banners.
+   - HeroBannerSlots: replaces the hero side cards with two rotating banner slots.
+   - PopupBanner: full-screen modal once per session per banner.
+   Both are admin-controlled via /admin/banners CRUD; data via /banners.
 */
 (function () {
-  const { useState, useEffect, useRef } = React;
+  const { useState, useEffect } = React;
   const useUI = () => window.PF_UI.useUI();
 
   const accentVar = (a) => ({
@@ -13,76 +15,63 @@
     spark: "var(--spark)",
   })[a] || "var(--cyan)";
 
-  // Helper: open link, supporting both internal routes (#board:slug, #signup) and external URLs.
   const openLink = (ui, url) => {
     if (!url) return;
     if (url.startsWith("#")) {
       const target = url.slice(1);
-      // internal modal kinds
       if (["signup", "login", "subscribe", "jam", "library", "checklist", "mentors", "contact", "about", "conduct", "forge"].includes(target)) {
-        ui.open(target);
-        return;
+        ui.open(target); return;
       }
-      // route (e.g. board:prompts, admin, home)
       if (target.startsWith("board:") || ["home", "admin"].includes(target)) {
-        ui.setRoute(target);
-        return;
+        ui.setRoute(target); return;
       }
-      // section anchor scroll
       const el = document.getElementById(target);
       if (el) { el.scrollIntoView({ behavior: "smooth" }); return; }
-      // fallback: scroll to top
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  // ── Rolling banner ────────────────────────────────────────────────────────
-  const RollingBanner = () => {
+  // Hero banner slot — single card cycling through banners.
+  const HeroSlot = ({ position, banners, offset = 0 }) => {
     const ui = useUI();
-    const [banners, setBanners] = useState([]);
     const [idx, setIdx] = useState(0);
     const [paused, setPaused] = useState(false);
 
     useEffect(() => {
-      window.PF_API.banners("rolling").then((res) => setBanners(res.banners || [])).catch(() => {});
-    }, []);
-
-    useEffect(() => {
       if (banners.length < 2 || paused) return;
-      const t = setInterval(() => setIdx((i) => (i + 1) % banners.length), 5500);
+      const t = setInterval(() => setIdx((i) => (i + 1) % banners.length), 6000 + offset * 800);
       return () => clearInterval(t);
-    }, [banners.length, paused]);
+    }, [banners.length, paused, offset]);
 
     if (!banners.length) return null;
-    const b = banners[idx];
+    const b = banners[(idx + offset) % banners.length];
     const accent = accentVar(b.accent);
 
     return (
-      <div className="pf-rolling" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
-        <div className="pf-rolling-card" style={{ borderLeft: `3px solid ${accent}` }}
-             onClick={() => openLink(ui, b.link_url)}>
-          <div className="pf-rolling-meta">
-            <span className="dot" style={{ background: accent }} />
-            <span className="kicker" style={{ color: accent, margin: 0 }}>
-              {b.subtitle || (b.kind === "rolling" ? "WEEKLY FORGE" : "공지")}
-            </span>
-          </div>
-          <h3 className="pf-rolling-title">{b.title}</h3>
-          {b.body && <p className="pf-rolling-body">{b.body}</p>}
-          {b.link_url && (
-            <span className="pf-rolling-cta" style={{ color: accent }}>
-              {b.link_label || "자세히 보기"} →
-            </span>
-          )}
+      <div className={`hero-side-card pf-hero-banner ${position}`}
+           onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}
+           onClick={() => openLink(ui, b.link_url)}
+           style={{ borderLeft: `2px solid ${accent}`, cursor: b.link_url ? "pointer" : "default" }}>
+        <div className="pf-hero-meta">
+          <span className="dot" style={{ background: accent }} />
+          <span className="mono" style={{ color: accent, fontSize: 11, letterSpacing: "0.1em" }}>
+            {b.subtitle || "WEEKLY FORGE"}
+          </span>
         </div>
+        <div className="pf-hero-title">{b.title}</div>
+        {b.body && <div className="pf-hero-body">{b.body}</div>}
+        {b.link_url && (
+          <div className="pf-hero-cta" style={{ color: accent }}>
+            {b.link_label || "자세히 보기"} →
+          </div>
+        )}
         {banners.length > 1 && (
-          <div className="pf-rolling-dots">
+          <div className="pf-hero-dots">
             {banners.map((_, i) => (
-              <button key={i} className={"pf-dot" + (i === idx ? " active" : "")}
-                      style={{ background: i === idx ? accent : undefined }}
-                      onClick={() => setIdx(i)} aria-label={`배너 ${i + 1}`} />
+              <span key={i} className={"pf-hero-dot" + (i === (idx + offset) % banners.length ? " active" : "")}
+                    style={{ background: i === (idx + offset) % banners.length ? accent : undefined }} />
             ))}
           </div>
         )}
@@ -90,7 +79,46 @@
     );
   };
 
-  // ── Popup banner — shown once per session per banner id ──────────────────
+  const HeroBannerSlots = () => {
+    const [banners, setBanners] = useState([]);
+    useEffect(() => {
+      window.PF_API.banners("rolling")
+        .then((res) => setBanners(res.banners || []))
+        .catch(() => {});
+    }, []);
+
+    // No banners → keep the design with two static fallback cards so the
+    // layout never collapses.
+    if (!banners.length) {
+      return (
+        <>
+          <div className="hero-side-card hsc-2">
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <span className="mono" style={{ color: "var(--cyan)", fontSize: 11, letterSpacing: "0.1em" }}>WEEKLY FORGE</span>
+              <span className="mono" style={{ color: "var(--ink-3)", fontSize: 11 }}>WK 18</span>
+            </div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>이주의 픽: 안개의 도서관</div>
+            <div style={{ fontSize: 11.5, color: "var(--ink-2)", lineHeight: 1.5 }}>관리자 페이지에서 공지를 추가하면 이 영역이 롤링됩니다.</div>
+          </div>
+          <div className="hero-side-card hsc-1">
+            <div className="mono" style={{ color: "var(--ember)", fontSize: 10.5, letterSpacing: "0.12em", marginBottom: 8 }}>● 안내</div>
+            <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4 }}>롤링 배너 영역</div>
+            <div style={{ fontSize: 11.5, color: "var(--ink-2)" }}>/admin → 공지 관리에서 등록하세요.</div>
+          </div>
+        </>
+      );
+    }
+
+    // With 1 banner → only show top slot. With 2+ → both slots cycling.
+    return (
+      <>
+        <HeroSlot position="hsc-2" banners={banners} offset={0} />
+        {banners.length > 1 && <HeroSlot position="hsc-1" banners={banners} offset={1} />}
+      </>
+    );
+  };
+
+  // ── Popup banner (unchanged) ─────────────────────────────────────────────
   const PopupBanner = () => {
     const ui = useUI();
     const [banner, setBanner] = useState(null);
@@ -100,9 +128,8 @@
       window.PF_API.banners("popup").then((res) => {
         const list = res.banners || [];
         if (!list.length) return;
-        // Pick the first not-yet-dismissed-this-session banner
         let dismissed = [];
-        try { dismissed = JSON.parse(sessionStorage.getItem("pf_dismissed_popups") || "[]"); } catch { /* noop */ }
+        try { dismissed = JSON.parse(sessionStorage.getItem("pf_dismissed_popups") || "[]"); } catch { /* */ }
         const next = list.find((b) => !dismissed.includes(b.id));
         if (next) setBanner(next);
       }).catch(() => {});
@@ -110,13 +137,12 @@
 
     if (!banner || closed) return null;
     const accent = accentVar(banner.accent);
-
     const close = () => {
       try {
         const list = JSON.parse(sessionStorage.getItem("pf_dismissed_popups") || "[]");
         if (!list.includes(banner.id)) list.push(banner.id);
         sessionStorage.setItem("pf_dismissed_popups", JSON.stringify(list));
-      } catch { /* noop */ }
+      } catch { /* */ }
       setClosed(true);
     };
 
@@ -142,5 +168,5 @@
     );
   };
 
-  window.PF_BANNERS = { RollingBanner, PopupBanner, openLink };
+  window.PF_BANNERS = { HeroBannerSlots, PopupBanner, openLink };
 })();

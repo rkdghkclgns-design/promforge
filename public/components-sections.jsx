@@ -57,6 +57,7 @@ const PostsSection = () => {
         : posts.map((p, i) => (
           <div key={p.id || i} className={"post-row " + (TAG_COLOR[p.tag] || p.color || "cyan")} onClick={() => ui.open("post", p)}>
             <span className="tag">{p.tag}</span>
+            {p.image_url && <img className="post-thumb" src={p.image_url} alt="" loading="lazy" />}
             <div className="title-cell">
               <div className="t">
                 {p.likes > 100 ? <span style={{color: "var(--ember)", marginRight: 6}}>🔥</span> : null}
@@ -117,7 +118,11 @@ const Showcase = () => {
         <div className="showcase-grid">
           {items.map((g, i) => (
             <div key={g.id || i} className={"showcase-card" + (g.featured ? " feat" : "")} onClick={() => ui.open("showcase", g)}>
-              <div className="placeholder" data-label={"[ " + g.title + " — preview ]"}></div>
+              {g.image_url ? (
+                <img className="showcase-img" src={g.image_url} alt={g.title} loading="lazy" />
+              ) : (
+                <div className="placeholder" data-label={"[ " + g.title + " — preview ]"}></div>
+              )}
               <div className="info">
                 {g.featured ? <span className="pill ember">PICK OF THE WEEK</span> : <span className="pill">{(g.genre || "GAME").split("·")[0].trim()}</span>}
                 <h3>{g.title}</h3>

@@ -108,20 +108,32 @@ const PostModal = ({ post }) => {
   const [likes, setLikes] = useUS(post.likes ?? 0);
   const [busy, setBusy] = useUS(false);
 
-  // Hydrate the full post (body, etc) when we have a real id.
+  // Comments
+  const [comments, setComments] = useUS([]);
+  const [commentText, setCommentText] = useUS("");
+  const [posting, setPosting] = useUS(false);
+  const session = window.PF_AUTH?.useSession?.() ?? { user: null };
+
+  // Hydrate full post + comments
   useUE(() => {
     let alive = true;
     if (!post.id) return;
-    fetch(`https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/posts/${post.id}`, {
-      headers: {
-        apikey: window.PF_API && 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
-        Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
-        'x-pf-token': window.PF_API._internal.getToken() || '',
-      },
-    })
-      .then((r) => r.json())
-      .then((d) => { if (alive && d.post) setFull({ ...post, ...d.post }); })
-      .catch(() => { /* keep summary */ });
+    (async () => {
+      try {
+        const detail = await fetch(`https://etasxbaorwgjoofdxean.supabase.co/functions/v1/pf-api/posts/${post.id}`, {
+          headers: {
+            apikey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+            Authorization: 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV0YXN4YmFvcndnam9vZmR4ZWFuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2NzUwMDIsImV4cCI6MjA5MTI1MTAwMn0.x8gV5pPEflhTniecyVrBNvjedkuimVRBUjh3zvez_us',
+            'x-pf-token': window.PF_API._internal.getToken() || '',
+          },
+        }).then(r => r.json());
+        if (alive && detail.post) setFull({ ...post, ...detail.post });
+      } catch { /* */ }
+      try {
+        const c = await window.PF_API.comments(post.id);
+        if (alive) setComments(c.comments || []);
+      } catch { /* */ }
+    })();
     return () => { alive = false; };
   }, [post.id]);
 
@@ -141,12 +153,45 @@ const PostModal = ({ post }) => {
       if (r.status === 401) { toast('추천하려면 로그인이 필요합니다', '로그인'); open('login'); return; }
       const data = await r.json();
       if (data.likes != null) { setLikes(data.likes); setLiked(true); }
-    } finally {
-      setBusy(false);
+    } finally { setBusy(false); }
+  };
+
+  const submitComment = async () => {
+    const text = commentText.trim();
+    if (!text) return;
+    if (!session.user) { open('login'); return; }
+    setPosting(true);
+    try {
+      const r = await window.PF_API.addComment(post.id, text);
+      setComments((cs) => [...cs, r.comment]);
+      setCommentText("");
+      toast("댓글이 등록되었습니다", "댓글");
+    } catch (err) {
+      const code = err?.data?.error;
+      if (code === "login_required") open('login');
+      else toast("등록 실패: " + (err.message || ""), "오류");
+    } finally { setPosting(false); }
+  };
+
+  const removeComment = async (c) => {
+    if (!confirm("이 댓글을 삭제할까요?")) return;
+    try {
+      await window.PF_API.deleteComment(c.id);
+      setComments((cs) => cs.filter((x) => x.id !== c.id));
+      toast("삭제되었습니다", "댓글");
+    } catch (err) { toast("실패: " + (err.message || ""), "오류"); }
+  };
+
+  const likeComment = async (c) => {
+    try {
+      const r = await window.PF_API.likeComment(c.id);
+      setComments((cs) => cs.map((x) => x.id === c.id ? { ...x, likes: r.likes } : x));
+    } catch (err) {
+      if (err?.data?.error === "login_required") open('login');
     }
   };
 
-  const showBody = full.body || full.preview;
+  const md = window.PF_MD?.renderMarkdown;
 
   return (
     <>
@@ -156,11 +201,14 @@ const PostModal = ({ post }) => {
         <span>@{full.author}</span>
         {full.time && <span>· {full.time}</span>}
         {full.views != null && <span>· 👁 {Number(full.views).toLocaleString()}</span>}
-        {full.replies != null && <span>· 💬 {full.replies}</span>}
+        <span>· 💬 {comments.length}</span>
         {full.badge ? <span style={{color: "var(--ember)"}}>· {full.badge}</span> : null}
       </div>
+      {full.image_url && (
+        <img src={full.image_url} alt="" className="md-hero" />
+      )}
       {full.body ? (
-        <pre className="code" style={{whiteSpace: 'pre-wrap'}}>{full.body}</pre>
+        <div className="md-body">{md ? md(full.body) : <pre className="code" style={{whiteSpace:'pre-wrap'}}>{full.body}</pre>}</div>
       ) : (
         <p className="body-text" style={{padding: 16, border: '1px dashed var(--line-strong)', borderRadius: 8, background: 'rgba(20,26,46,0.3)'}}>
           {full.preview || '본문을 불러오는 중…'}
@@ -171,7 +219,55 @@ const PostModal = ({ post }) => {
           {liked ? "♥" : "♡"} 추천 {likes}
         </button>
         <button className="btn btn-ghost" onClick={() => { navigator.clipboard?.writeText(location.href).then(() => toast("링크가 복사되었습니다")).catch(() => toast("복사 실패", "오류")); }}>링크 복사</button>
-        <button className="btn btn-primary" onClick={() => toast("댓글 기능은 다음 릴리스에 활성화됩니다", "준비중")}>댓글 달기</button>
+      </div>
+
+      {/* Comments */}
+      <div className="pf-comments">
+        <div className="kicker" style={{marginTop:18,marginBottom:10}}>// 댓글 {comments.length}</div>
+        {comments.length === 0 && (
+          <div style={{padding:16,textAlign:"center",color:"var(--ink-3)",fontSize:13,border:"1px dashed var(--line)",borderRadius:8,marginBottom:10}}>
+            첫 댓글을 남겨보세요
+          </div>
+        )}
+        {comments.map((c) => (
+          <div key={c.id} className="pf-comment">
+            <div className="pf-comment-head">
+              <span className="mono" style={{color:"var(--cyan)"}}>@{c.author}</span>
+              <span style={{color:"var(--ink-3)",fontSize:11,marginLeft:6}}>· {c.time}</span>
+              <div style={{marginLeft:"auto",display:"flex",gap:6}}>
+                <button className="pf-comment-act" onClick={() => likeComment(c)}>♥ {c.likes || 0}</button>
+                {session.user && (session.user.id === c.user_id || session.user.role === "admin") && (
+                  <button className="pf-comment-act" onClick={() => removeComment(c)} style={{color:"var(--ember)"}}>삭제</button>
+                )}
+              </div>
+            </div>
+            <div className="pf-comment-body">{c.body}</div>
+          </div>
+        ))}
+
+        {session.user ? (
+          <div className="pf-comment-form">
+            <textarea
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submitComment(); }}
+              placeholder="댓글을 입력하세요. (⌘/Ctrl + Enter 로 등록)"
+              rows={3}
+            />
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginTop:6}}>
+              <span style={{fontSize:11,color:"var(--ink-3)"}}>{commentText.length} / 4000</span>
+              <button className="btn btn-primary" onClick={submitComment} disabled={posting || !commentText.trim()}
+                      style={{padding:"6px 14px",fontSize:12}}>
+                {posting ? "등록 중…" : "댓글 등록"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{padding:14,textAlign:"center",border:"1px dashed var(--line-strong)",borderRadius:8,marginTop:10}}>
+            <span style={{fontSize:13,color:"var(--ink-2)"}}>댓글을 작성하려면 </span>
+            <button className="btn btn-ghost" style={{padding:"4px 10px",fontSize:12}} onClick={() => open('login')}>로그인</button>
+          </div>
+        )}
       </div>
     </>
   );
@@ -326,6 +422,93 @@ const NewPostModal = () => {
   const [form, setForm] = useUS({ boardSlug: "prompts", title: "", body: "", tag: "PROMPT" });
   const [busy, setBusy] = useUS(false);
   const [error, setError] = useUS(null);
+  const [uploading, setUploading] = useUS(false);
+  const taRef = React.useRef(null);
+
+  const insertAtCursor = (insert) => {
+    const ta = taRef.current;
+    if (!ta) { setForm((f) => ({ ...f, body: f.body + insert })); return; }
+    const start = ta.selectionStart ?? form.body.length;
+    const end = ta.selectionEnd ?? start;
+    const next = form.body.slice(0, start) + insert + form.body.slice(end);
+    setForm((f) => ({ ...f, body: next }));
+    setTimeout(() => {
+      ta.focus();
+      const pos = start + insert.length;
+      ta.setSelectionRange(pos, pos);
+    }, 0);
+  };
+
+  const wrapSelection = (before, after = before, placeholder = "") => {
+    const ta = taRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart, end = ta.selectionEnd;
+    const sel = form.body.slice(start, end) || placeholder;
+    const next = form.body.slice(0, start) + before + sel + after + form.body.slice(end);
+    setForm((f) => ({ ...f, body: next }));
+    setTimeout(() => {
+      ta.focus();
+      ta.setSelectionRange(start + before.length, start + before.length + sel.length);
+    }, 0);
+  };
+
+  const onInsertLink = () => {
+    const url = prompt("링크 URL을 입력하세요");
+    if (!url) return;
+    const label = prompt("링크 텍스트", url) || url;
+    insertAtCursor(`[${label}](${url})`);
+  };
+  const onInsertImageUrl = () => {
+    const url = prompt("이미지 URL을 입력하세요");
+    if (!url) return;
+    const alt = prompt("이미지 설명 (선택)", "") || "image";
+    insertAtCursor(`\n![${alt}](${url})\n`);
+  };
+
+  const uploadAndInsert = async (file) => {
+    if (!file || !file.type.startsWith("image/")) { toast("이미지 파일만 업로드 가능합니다", "오류"); return; }
+    if (file.size > 5 * 1024 * 1024) { toast("5MB 이하만 업로드 가능합니다", "오류"); return; }
+    setUploading(true);
+    try {
+      const r = await window.PF_API.upload(file);
+      insertAtCursor(`\n![${file.name || "image"}](${r.url})\n`);
+      toast("이미지가 업로드되었습니다", "업로드");
+    } catch (err) {
+      const code = err?.data?.error;
+      if (code === "login_required") open('login');
+      else toast("업로드 실패: " + (err.message || ""), "오류");
+    } finally { setUploading(false); }
+  };
+
+  const onFilePick = () => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*";
+    inp.onchange = () => inp.files?.[0] && uploadAndInsert(inp.files[0]);
+    inp.click();
+  };
+
+  const onPaste = (e) => {
+    const items = e.clipboardData?.items || [];
+    for (const item of items) {
+      if (item.type.startsWith("image/")) {
+        e.preventDefault();
+        uploadAndInsert(item.getAsFile());
+        return;
+      }
+    }
+    // URL paste → wrap selection as markdown link
+    const text = e.clipboardData?.getData("text") || "";
+    if (/^https?:\/\/\S+$/.test(text.trim())) {
+      const ta = taRef.current;
+      if (ta && ta.selectionStart !== ta.selectionEnd) {
+        e.preventDefault();
+        const sel = form.body.slice(ta.selectionStart, ta.selectionEnd);
+        const next = form.body.slice(0, ta.selectionStart) + `[${sel}](${text.trim()})` + form.body.slice(ta.selectionEnd);
+        setForm((f) => ({ ...f, body: next }));
+      }
+    }
+  };
+
   const submit = async () => {
     setError(null);
     if (!form.title.trim() || !form.body.trim()) { setError("제목과 본문을 입력해주세요."); return; }
@@ -363,7 +546,29 @@ const NewPostModal = () => {
       </label>
       <label className="field"><label>태그</label><input value={form.tag} onChange={e => setForm({...form, tag: e.target.value.toUpperCase()})} placeholder="PROMPT / SHOWCASE / WORKFLOW …" /></label>
       <label className="field"><label>제목</label><input value={form.title} onChange={e => setForm({...form, title: e.target.value})} placeholder="제목을 입력하세요" /></label>
-      <label className="field"><label>본문</label><textarea rows={6} value={form.body} onChange={e => setForm({...form, body: e.target.value})} placeholder="공유할 프롬프트, 코드, 또는 질문…" /></label>
+      <div className="field">
+        <label>본문 (마크다운 지원)</label>
+        <div className="md-toolbar">
+          <button type="button" onClick={() => wrapSelection("**", "**", "굵게")}><b>B</b></button>
+          <button type="button" onClick={() => wrapSelection("*", "*", "기울임")}><i>I</i></button>
+          <button type="button" onClick={() => wrapSelection("`", "`", "코드")} className="mono">{"<>"}</button>
+          <button type="button" onClick={() => insertAtCursor("\n```\n코드 블록\n```\n")} className="mono">{"```"}</button>
+          <button type="button" onClick={() => insertAtCursor("\n## 제목\n")}>H</button>
+          <button type="button" onClick={() => insertAtCursor("\n- 항목\n")}>•</button>
+          <span style={{flex:1}} />
+          <button type="button" onClick={onInsertLink} title="링크 삽입">🔗 링크</button>
+          <button type="button" onClick={onInsertImageUrl} title="이미지 URL 삽입">🖼 URL</button>
+          <button type="button" onClick={onFilePick} disabled={uploading} title="이미지 업로드">
+            {uploading ? "업로드 중…" : "📎 업로드"}
+          </button>
+        </div>
+        <textarea ref={taRef} rows={10} value={form.body} onPaste={onPaste}
+                  onChange={e => setForm({...form, body: e.target.value})}
+                  placeholder="공유할 프롬프트, 코드, 또는 질문…&#10;&#10;이미지 붙여넣기 또는 URL 붙여넣기 자동 인식.&#10;링크/이미지/굵게 등은 위 툴바를 사용하세요." />
+        <div style={{fontSize:11,color:"var(--ink-3)",marginTop:4,fontFamily:"JetBrains Mono, monospace"}}>
+          ! 이미지 클립보드 붙여넣기 지원 · 텍스트 선택 후 URL 붙여넣기 = 자동 링크 변환
+        </div>
+      </div>
       {error && <div style={{color:'var(--ember)', fontSize:13, marginBottom:8}}>{error}</div>}
       <div className="actions">
         <button className="btn btn-ghost" onClick={close} disabled={busy}>취소</button>

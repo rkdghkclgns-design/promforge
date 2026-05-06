@@ -24,6 +24,7 @@
 <script type="text/babel" src="ui-system.jsx"></script>
 <script type="text/babel" src="js/auth-override.jsx"></script>
 <script type="text/babel" src="js/banners.jsx"></script>
+<script type="text/babel" src="js/markdown.jsx"></script>
 <script type="text/babel" src="components-base.jsx"></script>
 <script type="text/babel" src="components-sections.jsx"></script>
 <script type="text/babel" src="components-info.jsx"></script>
@@ -35,7 +36,7 @@ const { Nav, Ticker, Hero, Boards, BoardDetailPage } = window.PF_BASE;
 const { PostsSection, Showcase, Studies, Rail, Tools, CTABanner, Footer } = window.PF_SEC;
 const { AdminPage } = window.PF_ADMIN;
 const { useSession, AdminGuard, NavSession, LoginGate } = window.PF_AUTH;
-const { RollingBanner, PopupBanner } = window.PF_BANNERS;
+const { PopupBanner } = window.PF_BANNERS;
 
 const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
   "heroAccent": "메이커들의 작업장",
@@ -113,7 +114,6 @@ const App = ({ tweaks }) => {
   <>
     <NavWithSession />
     <PopupBanner />
-    <RollingBanner />
     {tweaks.showTicker && <Ticker />}
     <Hero tweaks={tweaks} />
 

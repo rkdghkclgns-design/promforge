@@ -85,6 +85,26 @@
     jamSignup: (body) => request('/jam-signup', { method: 'POST', body }),
     mentors: () => request('/mentors'),
     banners: (kind) => request('/banners' + (kind ? `?kind=${kind}` : '')),
+    comments: (postId) => request(`/posts/${postId}/comments`),
+    addComment: (postId, body) => request(`/posts/${postId}/comments`, { method: 'POST', body: { body } }),
+    likeComment: (id) => request(`/comments/${id}/like`, { method: 'POST' }),
+    deleteComment: (id) => request(`/comments/${id}`, { method: 'DELETE' }),
+    upload: (file) => new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = async () => {
+        try {
+          const dataUrl = reader.result;
+          const base64 = dataUrl.split(',')[1];
+          const r = await request('/upload', {
+            method: 'POST',
+            body: { filename: file.name || 'paste.png', contentType: file.type || 'image/png', base64 },
+          });
+          resolve(r);
+        } catch (err) { reject(err); }
+      };
+      reader.onerror = () => reject(new Error('read_failed'));
+      reader.readAsDataURL(file);
+    }),
     admin: {
       overview: () => request('/admin/overview'),
       users: () => request('/admin/users'),

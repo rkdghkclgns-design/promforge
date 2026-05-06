@@ -194,25 +194,9 @@ const HeroVisual = () => (
         </div>
       </div>
     </div>
-    <div className="hero-side-card hsc-2">
-      <div style={{display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8}}>
-        <span className="mono" style={{color: "var(--cyan)", fontSize: 11, letterSpacing: "0.1em"}}>WEEKLY FORGE</span>
-        <span className="mono" style={{color: "var(--ink-3)", fontSize: 11}}>WK 18</span>
-      </div>
-      <div style={{fontSize: 13, fontWeight: 600, marginBottom: 6}}>이주의 픽: 안개의 도서관</div>
-      <div style={{fontSize: 11.5, color: "var(--ink-2)", lineHeight: 1.5}}>4주간 GPT-4o로만 빌드한 텍스트 어드벤처. 스토리 분기 240+.</div>
-    </div>
-    <div className="hero-side-card hsc-1">
-      <div className="mono" style={{color: "var(--ember)", fontSize: 10.5, letterSpacing: "0.12em", marginBottom: 8}}>● 진행중인 게임잼</div>
-      <div style={{fontSize: 13, fontWeight: 600, marginBottom: 4}}>"소리 없는 세계"</div>
-      <div style={{fontSize: 11.5, color: "var(--ink-2)", marginBottom: 10}}>주말 게임잼 · D-2 · 참가 64팀</div>
-      <div style={{display: "flex", gap: 4}}>
-        {["#3ce3ff", "#ff8a3c", "#9a8cff", "#6ee7a0", "#ffd166"].map((c, i) => (
-          <div key={i} style={{width: 22, height: 22, borderRadius: 999, background: c, opacity: 0.85, border: "2px solid #0a0e1a", marginLeft: i ? -7 : 0}}></div>
-        ))}
-        <span style={{fontSize: 11, color: "var(--ink-3)", marginLeft: 10, alignSelf: "center"}} className="mono">+59</span>
-      </div>
-    </div>
+    {/* Hero side cards now backed by admin-controlled rolling banners.
+        Falls back to the original static cards if no banners are loaded. */}
+    {window.PF_BANNERS && <window.PF_BANNERS.HeroBannerSlots />}
   </div>
 );
 
@@ -463,6 +447,7 @@ const BoardDetailPage = ({ slug }) => {
           ) : posts.map((p, i) => (
             <div key={p.id || i} className={"post-row " + (board?.color || "cyan")} onClick={() => ui.open("post", p)}>
               <span className="tag">{p.tag}</span>
+              {p.image_url && <img className="post-thumb" src={p.image_url} alt="" loading="lazy" />}
               <div className="title-cell">
                 <div className="t">{p.title}</div>
                 <div className="meta">
